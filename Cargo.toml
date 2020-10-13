@@ -1,0 +1,17 @@
+[package]
+name = "s4"
+version = "0.1.0"
+authors = ["Curtis Millar <curtis.millar@data61.csiro.au>"]
+edition = "2018"
+license-file = "LICENSE"
+readme = "README.md"
+description = """\
+	Command line tool for working with seL4 projects and build system
+"""
+categories = [
+	"command-line-utilities",
+	"development-tools::build-utils",
+]
+keywords = [ "sel4", "repo", "cmake" ]
+
+[dependencies]
