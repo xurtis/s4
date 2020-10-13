@@ -74,7 +74,39 @@ description = "Platform architecture (arm, riscv, X86)"
 name = "sel4-architecture"
 description = "Platform sel4 architecture (aarch32, aarch64, riscv32, riscv64, ia32, x86_64)"
 
-# Flags set to indicate features
+# Flags set by seL4 named architectures
+
+[[flag]]
+# This flag is set based on the platform architecture
+name = "cross-compiler-prefix"
+description = "Prefix added to binutils and compiler binaries"
+variable = "CROSS_COMPILER_PREFIX"
+
+[[flag]]
+# This flag is set based on the platform architecture
+name = "riscv32"
+description = "Build kernel for riscv32"
+variable = "RISCV32"
+
+[[flag]]
+# This flag is set based on the platform architecture
+name = "riscv64"
+description = "Build kernel for riscv64"
+variable = "RISCV64"
+
+[[flag]]
+# This flag is set based on the platform architecture
+name = "aarch32"
+description = "Build kernel for aarch32"
+variable = "AARCH32"
+
+[[flag]]
+# This flag is set based on the platform architecture
+name = "aarch64"
+description = "Build kernel for aarch64"
+variable = "AARCH64"
+
+# Flags set by platforms to indicate features
 
 [[flag]]
 name = "can-mcs"
@@ -358,3 +390,22 @@ can-mcs = true
 name = "zynqmp"
 architectures = [ "aarch32", "aarch64" ]
 has-hypervisor = true
+
+# Architecture flags
+# ==================
+
+[architecture.riscv64]
+cross_compiler_prefix = "riscv64-unknown-linux-gnu-"
+riscv64 = true
+
+[architecture.riscv32]
+cross_compiler_prefix = "riscv64-unknown-linux-gnu-"
+riscv32 = true
+
+[architecture.aarch32]
+cross_compiler_prefix = "arm-linux-gnueabi-"
+aarch32 = true
+
+[architecture.aarch64]
+cross_compiler_prefix = "aarch64-linux-gnu-"
+aarch64 = true

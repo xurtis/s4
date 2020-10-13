@@ -15,6 +15,9 @@ pub struct Config {
     /// Known platforms
     #[serde(default, rename = "platform")]
     platforms: BTreeSet<Platform>,
+    /// Architecture-specific flags
+    #[serde(default, rename = "architecture", alias = "arch")]
+    architectures: BTreeMap<Sel4Architecture, Setting>,
 }
 
 impl Config {
