@@ -15,3 +15,6 @@ categories = [
 keywords = [ "sel4", "repo", "cmake" ]
 
 [dependencies]
+anyhow = "1.0.32"
+serde = { version = "1.0", features = [ "derive" ] }
+toml = "0.5.7"

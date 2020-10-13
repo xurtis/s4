@@ -1,0 +1,162 @@
+# Built-in s4 configuration
+
+# Configuration flags
+# ===================
+#
+# Flags are used to configure s4 and to define dependencies between configurations.
+#
+# - name: All flags must have a name that is 'kebab-case'. This will be used on the command line to
+#   enable (with the '--' prefix), disable (with the '--no-' prefix), and set (with the '--set-'
+#   prefix) the value for a given build configuration.
+# - description: All flags must have a human-readable description.
+# - variable: If this is provided, the CMake variable with this name will be set to the configured
+#   value.
+#
+# Flag requirements
+# -----------------
+#
+# Each flag can have multiple requirements sections. Only one section is required to be satisfied
+# for the flag to be enabled. A requirements section is satisfied if all flags listed have been
+# configured with the given value or one of the values in a given list of valus.
+
+# Flags set by via command line arguments
+
+[[flag]]
+name = "release"
+description = "Disable debug kernel and project configuration; optimised build"
+variable = "RELEASE"
+
+[[flag]]
+name = "simulation"
+description = "Build for QEMU and generate simulation script"
+variable = "SIMLULATION"
+
+	[[flag.requires]]
+	can-simulate = true
+
+[[flag]]
+name = "smp"
+description = "Configure kernel to use multiple cores"
+variable = "SMP"
+
+[[flag]]
+name = "mcs"
+description = "Configure kernel to use MCS scheduler"
+variable = "MCS"
+
+	[[flag.requires]]
+	can-mcs = true
+
+[[flag]]
+name = "arm-hyp"
+description = "Configure ARM platform to enable hypervisor"
+variable = "ARM_HYP"
+
+	[[flag.requires]]
+	can-hypervisor = true
+	architecture = "arm"
+
+# Flags set to indicate platform
+
+[[flag]]
+# This flag is automatically set by setting the platform
+name = "platform"
+description = "Set the platform used when building"
+variable = "PLATFORM"
+
+[[flag]]
+# This flag is automatically derived from the sel4-architecture
+name = "architecture"
+description = "Platform architecture (arm, riscv, X86)"
+
+[[flag]]
+# This flag is set based on the architecture configured at command line
+name = "sel4-architecture"
+description = "Platform sel4 architecture (aarch32, aarch64, riscv32, riscv64, ia32, x86_64)"
+
+# Flags set to indicate features
+
+[[flag]]
+name = "can-mcs"
+description = "Platform supports MCS"
+
+[[flag]]
+name = "has-hypervisor"
+description = "Platform supports virtualisation"
+
+[[flag]]
+name = "can-simulate"
+description = "Platform supports simulation"
+
+# Flag set by platform variations
+
+[[flag]]
+name = "arm-platform"
+description = "Specific variation of ARM platform to build"
+variable = "KernelARMPlatform"
+type = "string"
+
+[[flag]]
+name = "x86-micro-arch"
+description = "Specific micro-architecture to build for x86"
+variable = "KernelX86MicroArch"
+type = "string"
+
+# Platforms
+# =========
+#
+# Platforms describe a hardware platform that can be targeted and the features available for that
+# platform.
+#
+# - name: The name recognised by the CMake build system to configure a particular platform
+# - architectures: The seL4 named architectures supported on the given platform
+# - flag settings: Values to set for flags when the platform is configured
+#
+# Platform variations
+# -------------------
+#
+# A platform variation is a more specific platform that has more features than its base platform.
+#
+# - name: A named identifier for the variation
+# - flag settings: Values to set for flags when the platform is configured (overrides base
+#   platform)
+
+[[platform]]
+name = "pc99"
+architectures = [ "ia32", "x86_64" ]
+x86-micro-arch = "generic"
+can-simulate = true
+has-hypervisor = true
+can-mcs = true
+
+	[[platform.variation]]
+	name = "nehalem"
+	x86-micro-arch = "nehalem"
+
+	[[platform.variation]]
+	name = "westmere"
+	x86-micro-arch = "westmere"
+
+	[[platform.variation]]
+	name = "westmere"
+	x86-micro-arch = "westmere"
+
+	[[platform.variation]]
+	name = "sandybridge"
+	x86-micro-arch = "sandy"
+
+	[[platform.variation]]
+	name = "ivybridge"
+	x86-micro-arch = "ivy"
+
+	[[platform.variation]]
+	name = "haswell"
+	x86-micro-arch = "haswell"
+
+	[[platform.variation]]
+	name = "broadwell"
+	x86-micro-arch = "broadwell"
+
+	[[platform.variation]]
+	name = "skylake"
+	x86-micro-arch = "skylake"
