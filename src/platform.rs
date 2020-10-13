@@ -45,11 +45,54 @@ pub struct VariationId(String);
 
 /// The choice of a specific platform
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Deserialize)]
+#[serde(try_from = "String")]
+#[serde(into = "String")]
 pub enum PlatformChoice {
     /// Choose any varaition of a given platform
     ChoosePlatform(PlatformId),
     /// Choose specific varaition of a given platform
     ChooseVariation(PlatformId, VariationId),
+}
+use PlatformChoice::*;
+
+impl FromStr for PlatformChoice {
+    type Err = Error;
+
+    fn from_str(string: &str) -> Result<Self, Self::Err> {
+        match string.split(":").collect::<Vec<_>>().as_slice() {
+            [platform] => Ok(ChoosePlatform(PlatformId(platform.to_string()))),
+            [platform, variation] => Ok(ChooseVariation(
+                PlatformId(platform.to_string()),
+                VariationId(variation.to_string()),
+            )),
+            _ => bail!("Malformed platform choice: {}", string),
+        }
+    }
+}
+
+impl TryFrom<String> for PlatformChoice {
+    type Error = Error;
+
+    fn try_from(string: String) -> Result<Self, Self::Error> {
+        string.parse()
+    }
+}
+
+impl Into<String> for PlatformChoice {
+    fn into(self) -> String {
+        format!("{}", self)
+    }
+}
+
+impl fmt::Display for PlatformChoice {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            ChoosePlatform(PlatformId(platform)) => write!(f, "{}", platform),
+            ChooseVariation(PlatformId(platform), VariationId(variation)) => {
+                write!(f, "{}:{}", platform, variation)
+            }
+        }
+    }
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Deserialize)]
