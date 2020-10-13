@@ -97,6 +97,11 @@ variable = "KernelARMPlatform"
 type = "string"
 
 [[flag]]
+name = "arm-cpu"
+description = "Specific CPU emulated by QEMU"
+variable = "ARM_CPU"
+
+[[flag]]
 name = "x86-micro-arch"
 description = "Specific micro-architecture to build for x86"
 variable = "KernelX86MicroArch"
@@ -120,6 +125,132 @@ type = "string"
 # - name: A named identifier for the variation
 # - flag settings: Values to set for flags when the platform is configured (overrides base
 #   platform)
+
+[[platform]]
+name = "allwinnerA20"
+architectures = [ "aarch32" ]
+
+[[platform]]
+name = "am335x"
+architectures = [ "aarch32" ]
+can-mcs = true
+
+	[[platform.variation]]
+	name = "am335x-boneblack"
+	arm-platform = "am335x-boneblack"
+
+	[[platform.variation]]
+	name = "am335x-boneblue"
+	arm-platform = "am335x-boneblue"
+
+[[platform]]
+name = "apq8064"
+architectures = [ "aarch32" ]
+
+[[platform]]
+name = "ariane"
+architectures = [ "riscv32", "riscv64" ]
+can-mcs = true
+
+[[platform]]
+name = "bcm2837"
+architectures = [ "aarch32", "aarch64" ]
+can-simulate = true
+has-hypervisor = true
+can-mcs = true
+
+	[[platform.variation]]
+	name = "rpi3"
+	arm-platform = "rpi3"
+
+[[platform]]
+name = "exynos4"
+architectures = [ "aarch32" ]
+can-mcs = true
+
+[[platform]]
+name = "exynos5"
+architectures = [ "aarch32" ]
+has-hypervisor = true
+can-mcs = true
+
+	[[platform.variation]]
+	name = "exynos5250"
+	arm-platform = "exynos5250"
+
+	[[platform.variation]]
+	name = "exynos5410"
+	arm-platform = "exynos5410"
+
+	[[platform.variation]]
+	name = "exynos5422"
+	arm-platform = "exynos5250"
+
+[[platform]]
+name = "fvp"
+architectures = [ "aarch64" ]
+has-hypervisor = true
+can-mcs = true
+
+[[platform]]
+name = "hifive"
+architectures = [ "riscv64" ]
+can-mcs = true
+
+[[platform]]
+name = "hikey"
+architectures = [ "aarch32", "aarch64" ]
+has-hypervisor = true
+can-mcs = true
+
+[[platform]]
+name = "imx31"
+architectures = [ "aarch32" ]
+can-simulate = true
+can-mcs = true
+
+[[platform]]
+name = "imx6"
+architectures = [ "aarch32" ]
+can-simulate = true
+can-mcs = true
+
+	[[platform.variation]]
+	name = "sabre"
+	arm-platform = "sabre"
+
+	[[platform.variation]]
+	name = "wandq"
+	arm-platform = "wandq"
+
+[[platform]]
+name = "imx7"
+architectures = [ "aarch32" ]
+can-simulate = true
+can-mcs = true
+
+[[platform]]
+name = "imx8mm-evk"
+architectures = [ "aarch32", "aarch64" ]
+has-hypervisor = true
+can-mcs = true
+
+[[platform]]
+name = "imx8mq-evk"
+architectures = [ "aarch32", "aarch64" ]
+has-hypervisor = true
+can-mcs = true
+
+[[platform]]
+name = "odroidc2"
+architectures = [ "aarch64" ]
+has-hypervisor = true
+can-mcs = true
+
+[[platform]]
+name = "omap3"
+architectures = [ "aarch32" ]
+can-mcs = true
 
 [[platform]]
 name = "pc99"
@@ -160,3 +291,70 @@ can-mcs = true
 	[[platform.variation]]
 	name = "skylake"
 	x86-micro-arch = "skylake"
+
+[[platform]]
+name = "qemu-cortex-a15"
+architectures = [ "aarch32" ]
+can-simulate = true
+has-hypervisor = true
+can-mcs = true
+arm-cpu = "cortex-a15"
+platform = "qemu-arm-virt"
+
+[[platform]]
+name = "qemu-cortex-a53"
+architectures = [ "aarch64" ]
+can-simulate = true
+has-hypervisor = true
+can-mcs = true
+arm-cpu = "cortex-a53"
+platform = "qemu-arm-virt"
+
+[[platform]]
+name = "qemu-cortex-a57"
+architectures = [ "aarch64" ]
+can-simulate = true
+has-hypervisor = true
+can-mcs = true
+arm-cpu = "cortex-a57"
+platform = "qemu-arm-virt"
+
+[[platform]]
+name = "rocketchip"
+architectures = [ "riscv32", "riscv64" ]
+can-mcs = true
+
+[[platform]]
+name = "rockpro64"
+architectures = [ "aarch64" ]
+has-hypervisor = true
+can-mcs = true
+
+[[platform]]
+name = "spike"
+architectures = [ "riscv32", "riscv64" ]
+can-simulate = true
+can-mcs = true
+
+[[platform]]
+name = "tk1"
+architectures = [ "aarch32" ]
+has-hypervisor = true
+can-mcs = true
+
+[[platform]]
+name = "tx2"
+architectures = [ "aarch64" ]
+has-hypervisor = true
+can-mcs = true
+
+[[platform]]
+name = "zynq7000"
+architectures = [ "aarch32" ]
+can-simulate = true
+can-mcs = true
+
+[[platform]]
+name = "zynqmp"
+architectures = [ "aarch32", "aarch64" ]
+has-hypervisor = true
