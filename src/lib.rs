@@ -7,14 +7,13 @@
 //! well as from the project root, can provide information on platforms, projects, hardware
 //! runners, and build environments.
 
-mod platform;
 mod cmake;
 mod config;
+mod platform;
 
-pub use platform::*;
 pub use cmake::*;
 pub use config::*;
-
+pub use platform::*;
 
 #[cfg(test)]
 mod tests {

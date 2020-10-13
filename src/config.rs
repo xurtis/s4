@@ -1,9 +1,9 @@
 //! Configuration of the tool
 
+use crate::{Flag, Platform, Sel4Architecture, Setting};
 use anyhow::Result;
 use serde::Deserialize;
-use crate::{Flag, Platform};
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use toml;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Deserialize)]

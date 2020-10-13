@@ -1,7 +1,7 @@
 //! Wrapper for invocations of CMake
 
+use serde::{de, Deserialize, Deserializer};
 use std::collections::{BTreeMap, BTreeSet};
-use serde::{Deserialize, Deserializer, de};
 use std::fmt;
 
 /// Definition of a configuration option
