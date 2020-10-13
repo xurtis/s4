@@ -1,6 +1,6 @@
 //! Configuration of the tool
 
-use crate::{Flag, Platform, Sel4Architecture, Setting};
+use crate::{Flag, Platform, Project, Sel4Architecture, Setting};
 use anyhow::Result;
 use serde::Deserialize;
 use std::collections::{BTreeMap, BTreeSet};
@@ -18,6 +18,9 @@ pub struct Config {
     /// Architecture-specific flags
     #[serde(default, rename = "architecture", alias = "arch")]
     architectures: BTreeMap<Sel4Architecture, Setting>,
+    /// Known projects
+    #[serde(default, rename = "project")]
+    porjects: BTreeSet<Project>,
 }
 
 impl Config {

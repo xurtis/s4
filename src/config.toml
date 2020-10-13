@@ -56,6 +56,26 @@ variable = "ARM_HYP"
 	can-hypervisor = true
 	architecture = "arm"
 
+[[flag]]
+name = "verification"
+description = "Configure only verification-compatible features"
+variable = "VERIFICATION"
+
+[[flag]]
+name = "bamboo"
+description = "Configure test output to be compliant with bamboo"
+variable = "BAMBOO"
+
+[[flag]]
+name = "domains"
+description = "Enable multiple kernel scheduling domains"
+variable = "DOMAINS"
+
+[[flag]]
+name = "fastpath"
+description = "Enable the kernel IPC fastpath"
+variable = "FASTPATH"
+
 # Flags set to indicate platform
 
 [[flag]]
@@ -409,3 +429,31 @@ aarch32 = true
 [architecture.aarch64]
 cross_compiler_prefix = "aarch64-linux-gnu-"
 aarch64 = true
+
+# Projects
+# ========
+#
+# Each project identifies a project directory that can be initialised with repo.
+#
+# - name: Each project is identified by a name
+# - repository: The name of the manifest repository in the form of <owner/org>/<repo> without a
+#   .git suffix
+# - source-directory: The project source directory relative to the root of the checkout repo
+# - command-line: A list of flags to make available at the command line
+# - flags: A project can also set flags that will be overridden by the platform.
+
+[[project]]
+name = "sel4test"
+repository = "seL4/sel4test-manifest"
+source-directory = "projects/sel4test"
+command-line = [
+	"simulation",
+	"release",
+	"verification",
+	"bamboo",
+	"domains",
+	"smp",
+	"mcs",
+	"fastpath",
+	"arm-hyp",
+]

@@ -10,10 +10,12 @@
 mod cmake;
 mod config;
 mod platform;
+mod project;
 
 pub use cmake::*;
 pub use config::*;
 pub use platform::*;
+pub use project::*;
 
 #[cfg(test)]
 mod tests {
