@@ -20,7 +20,7 @@ pub struct Config {
     architectures: BTreeMap<Sel4Architecture, Setting>,
     /// Known projects
     #[serde(default, rename = "project")]
-    porjects: BTreeSet<Project>,
+    projects: BTreeSet<Project>,
 }
 
 impl Config {
