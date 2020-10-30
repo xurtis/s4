@@ -4,6 +4,7 @@ use crate::{Flag, Platform, Project, Sel4Architecture, Setting};
 use anyhow::Result;
 use serde::Deserialize;
 use std::collections::{BTreeMap, BTreeSet};
+use std::ops::Deref;
 use toml;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Deserialize)]
@@ -14,16 +15,16 @@ pub struct Config {
     defaults: Defaults,
     /// Common flags
     #[serde(default, rename = "flag")]
-    flags: BTreeSet<Flag>,
+    flags: NamedMap<Flag>,
     /// Known platforms
     #[serde(default, rename = "platform")]
-    platforms: BTreeSet<Platform>,
+    platforms: NamedMap<Platform>,
     /// Architecture-specific flags
     #[serde(default, rename = "architecture", alias = "arch")]
     architectures: BTreeMap<Sel4Architecture, Setting>,
     /// Known projects
     #[serde(default, rename = "project")]
-    projects: BTreeSet<Project>,
+    projects: NamedMap<Project>,
 }
 
 impl Config {
@@ -33,6 +34,16 @@ impl Config {
     /// Parse the builtin configuration file
     pub fn builtin() -> Result<Self> {
         toml::from_slice(Self::BUILTIN_TOML).map_err(|e| e.into())
+    }
+}
+
+impl Merge for Config {
+    fn merge(&mut self, other: Self) {
+        self.defaults.merge(other.defaults);
+        self.flags.merge(other.flags);
+        self.platforms.merge(other.platforms);
+        self.architectures.merge(other.architectures);
+        self.projects.merge(other.projects);
     }
 }
 
@@ -84,6 +95,16 @@ impl Defaults {
     /// Manifest to checkou out for repo
     pub fn repo_manifest(&self) -> Option<&str> {
         option_ref(&self.repo_manifest)
+    }
+}
+
+impl Merge for Defaults {
+    fn merge(&mut self, other: Self) {
+        self.git_server.merge(other.git_server);
+        self.docker_image.merge(other.docker_image);
+        self.repo_url.merge(other.repo_url);
+        self.repo_branch.merge(other.repo_branch);
+        self.repo_manifest.merge(other.repo_manifest);
     }
 }
 
@@ -146,5 +167,86 @@ impl MergeId for String {}
 impl<T: MergeId> Merge for T {
     fn merge(&mut self, other: Self) {
         *self = other;
+    }
+}
+
+/// Items that have a named identifier
+pub trait Named {
+    type Id;
+}
+
+pub struct NameRef<'t, T: Named> {
+    inner: &'t T,
+    name: &'t T::Id,
+}
+
+impl<'t, T: Named> NameRef<'t, T> {
+    pub fn new(inner: &'t T, name: &'t T::Id) -> Self {
+        NameRef { inner, name }
+    }
+
+    pub fn name(&self) -> &T::Id {
+        self.name
+    }
+}
+
+impl<'t, T: Named> Deref for NameRef<'t, T> {
+    type Target = T;
+
+    fn deref(&self) -> &Self::Target {
+        self.inner
+    }
+}
+
+/// Mapping of name identifiers to items
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Deserialize)]
+#[serde(transparent)]
+pub struct NamedMap<T: Named>
+where
+    T::Id: Ord,
+    T::Id: for<'nde> Deserialize<'nde>,
+{
+    map: BTreeMap<T::Id, T>,
+}
+
+impl<T: Named> Default for NamedMap<T>
+where
+    T::Id: Ord,
+    T::Id: for<'nde> Deserialize<'nde>,
+{
+    fn default() -> Self {
+        NamedMap {
+            map: BTreeMap::default(),
+        }
+    }
+}
+
+impl<T: Named> NamedMap<T>
+where
+    T::Id: Ord,
+    T::Id: for<'nde> Deserialize<'nde>,
+{
+    /// Get an object with its name from the map
+    pub fn get(&self, index: impl AsRef<T::Id>) -> Option<NameRef<T>> {
+        let index = index.as_ref();
+        self.map
+            .get_key_value(index)
+            .map(move |(k, v)| NameRef::new(v, k))
+    }
+
+    /// Get all of the objects with names from the map
+    pub fn all(&self) -> impl Iterator<Item = NameRef<T>> {
+        self.map.iter().map(|(k, v)| NameRef::new(v, k))
+    }
+}
+
+impl<T: Named> Merge for NamedMap<T>
+where
+    T::Id: Ord,
+    T::Id: for<'nde> Deserialize<'nde>,
+    T: Clone + Merge<T>,
+{
+    fn merge(&mut self, other: Self) {
+        self.map.merge(other.map)
     }
 }

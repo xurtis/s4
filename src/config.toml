@@ -21,143 +21,121 @@
 
 # Flags set by via command line arguments
 
-[[flag]]
-name = "release"
+[flag.release]
 description = "Disable debug kernel and project configuration; optimised build"
 variable = "RELEASE"
 
-[[flag]]
-name = "simulation"
+[flag.simulation]
 description = "Build for QEMU and generate simulation script"
 variable = "SIMLULATION"
 
-	[[flag.requires]]
+	[[flag.simulation.requires]]
 	can-simulate = true
 
-[[flag]]
-name = "smp"
+[flag.smp]
 description = "Configure kernel to use multiple cores"
 variable = "SMP"
 
-[[flag]]
-name = "mcs"
+[flag.mcs]
 description = "Configure kernel to use MCS scheduler"
 variable = "MCS"
 
-	[[flag.requires]]
+	[[flag.mcs.requires]]
 	can-mcs = true
 
-[[flag]]
-name = "arm-hyp"
+[flag.arm-hyp]
 description = "Configure ARM platform to enable hypervisor"
 variable = "ARM_HYP"
 
-	[[flag.requires]]
+	[[flag.arm-hyp.requires]]
 	can-hypervisor = true
 	architecture = "arm"
 
-[[flag]]
+[flag.verification]
 name = "verification"
 description = "Configure only verification-compatible features"
 variable = "VERIFICATION"
 
-[[flag]]
+[flag.bamboo]
 name = "bamboo"
 description = "Configure test output to be compliant with bamboo"
 variable = "BAMBOO"
 
-[[flag]]
-name = "domains"
+[flag.domains]
 description = "Enable multiple kernel scheduling domains"
 variable = "DOMAINS"
 
-[[flag]]
+[flag.fastpath]
 name = "fastpath"
 description = "Enable the kernel IPC fastpath"
 variable = "FASTPATH"
 
 # Flags set to indicate platform
 
-[[flag]]
+[flag.platform]
 # This flag is automatically set by setting the platform
-name = "platform"
 description = "Set the platform used when building"
 variable = "PLATFORM"
 
-[[flag]]
+[flag.architecture]
 # This flag is automatically derived from the sel4-architecture
-name = "architecture"
 description = "Platform architecture (arm, riscv, X86)"
 
-[[flag]]
+[flag.sel4-architecture]
 # This flag is set based on the architecture configured at command line
-name = "sel4-architecture"
 description = "Platform sel4 architecture (aarch32, aarch64, riscv32, riscv64, ia32, x86_64)"
 
 # Flags set by seL4 named architectures
 
-[[flag]]
+[flag.cross-compiler-prefix]
 # This flag is set based on the platform architecture
-name = "cross-compiler-prefix"
 description = "Prefix added to binutils and compiler binaries"
 variable = "CROSS_COMPILER_PREFIX"
 
-[[flag]]
+[flag.riscv32]
 # This flag is set based on the platform architecture
-name = "riscv32"
 description = "Build kernel for riscv32"
 variable = "RISCV32"
 
-[[flag]]
+[flag.riscv64]
 # This flag is set based on the platform architecture
-name = "riscv64"
 description = "Build kernel for riscv64"
 variable = "RISCV64"
 
-[[flag]]
+[flag.aarch32]
 # This flag is set based on the platform architecture
-name = "aarch32"
 description = "Build kernel for aarch32"
 variable = "AARCH32"
 
-[[flag]]
+[flag.aarch64]
 # This flag is set based on the platform architecture
-name = "aarch64"
 description = "Build kernel for aarch64"
 variable = "AARCH64"
 
 # Flags set by platforms to indicate features
 
-[[flag]]
-name = "can-mcs"
+[flag.can-mcs]
 description = "Platform supports MCS"
 
-[[flag]]
-name = "has-hypervisor"
+[flag.has-hypervisor]
 description = "Platform supports virtualisation"
 
-[[flag]]
-name = "can-simulate"
+[flag.can-simulate]
 description = "Platform supports simulation"
 
 # Flag set by platform variations
 
-[[flag]]
-name = "arm-platform"
+[flag.arm-platform]
 description = "Specific variation of ARM platform to build"
 variable = "KernelARMPlatform"
-type = "string"
 
-[[flag]]
-name = "arm-cpu"
+[flag.arm-cpu]
 description = "Specific CPU emulated by QEMU"
 variable = "ARM_CPU"
 
-[[flag]]
-name = "x86-micro-arch"
+[flag.x86-micro-arch]
 description = "Specific micro-architecture to build for x86"
 variable = "KernelX86MicroArch"
-type = "string"
 
 # Platforms
 # =========
@@ -178,133 +156,109 @@ type = "string"
 # - flag settings: Values to set for flags when the platform is configured (overrides base
 #   platform)
 
-[[platform]]
-name = "allwinnerA20"
+[platform.allwinnerA20]
 architectures = [ "aarch32" ]
 
-[[platform]]
-name = "am335x"
+[platform.am335x]
 architectures = [ "aarch32" ]
 can-mcs = true
 
-	[[platform.variation]]
-	name = "am335x-boneblack"
+	[platform.am335x.variation.am335x-boneblack]
 	arm-platform = "am335x-boneblack"
 
-	[[platform.variation]]
-	name = "am335x-boneblue"
+	[platform.am335x.variation.am335x-boneblue]
 	arm-platform = "am335x-boneblue"
 
-[[platform]]
-name = "apq8064"
+[platform.apq8064]
 architectures = [ "aarch32" ]
 
-[[platform]]
-name = "ariane"
+[platform.ariane]
 architectures = [ "riscv32", "riscv64" ]
 can-mcs = true
 
-[[platform]]
-name = "bcm2837"
+[platform.bcm2837]
 architectures = [ "aarch32", "aarch64" ]
 can-simulate = true
 has-hypervisor = true
 can-mcs = true
 
-	[[platform.variation]]
-	name = "rpi3"
+	[platform.bcm2837.variation.rpi3]
 	arm-platform = "rpi3"
 
-[[platform]]
-name = "exynos4"
+[platform.exynos4]
 architectures = [ "aarch32" ]
 can-mcs = true
 
-[[platform]]
+[platform.exynos5]
 name = "exynos5"
 architectures = [ "aarch32" ]
 has-hypervisor = true
 can-mcs = true
 
-	[[platform.variation]]
-	name = "exynos5250"
+	[platform.exynos5.variation.exynos5250]
 	arm-platform = "exynos5250"
 
-	[[platform.variation]]
-	name = "exynos5410"
+	[platform.exynos5.variation.exynos5410]
 	arm-platform = "exynos5410"
 
-	[[platform.variation]]
-	name = "exynos5422"
+	[platform.exynos5.variation.exynos5422]
 	arm-platform = "exynos5250"
 
-[[platform]]
-name = "fvp"
+[platform.fvp]
 architectures = [ "aarch64" ]
 has-hypervisor = true
 can-mcs = true
 
-[[platform]]
-name = "hifive"
+[platform.hifive]
 architectures = [ "riscv64" ]
 can-mcs = true
 
-[[platform]]
-name = "hikey"
+[platform.hikey]
 architectures = [ "aarch32", "aarch64" ]
 has-hypervisor = true
 can-mcs = true
 
-[[platform]]
-name = "imx31"
+[platform.imx31]
 architectures = [ "aarch32" ]
 can-simulate = true
 can-mcs = true
 
-[[platform]]
-name = "imx6"
+[platform.imx6]
 architectures = [ "aarch32" ]
 can-simulate = true
 can-mcs = true
 
-	[[platform.variation]]
-	name = "sabre"
+	[platform.imx6.variation.sabre]
 	arm-platform = "sabre"
 
-	[[platform.variation]]
-	name = "wandq"
+	[platform.imx6.variation.wandq]
 	arm-platform = "wandq"
 
-[[platform]]
-name = "imx7"
+[platform.imx7]
 architectures = [ "aarch32" ]
 can-simulate = true
 can-mcs = true
 
-[[platform]]
-name = "imx8mm-evk"
+[platform.imx8mm-evk]
 architectures = [ "aarch32", "aarch64" ]
 has-hypervisor = true
 can-mcs = true
 
-[[platform]]
-name = "imx8mq-evk"
+[platform.imx8mq-evk]
 architectures = [ "aarch32", "aarch64" ]
 has-hypervisor = true
 can-mcs = true
 
-[[platform]]
-name = "odroidc2"
+[platform.odroidc2]
 architectures = [ "aarch64" ]
 has-hypervisor = true
 can-mcs = true
 
-[[platform]]
-name = "omap3"
+[platform.omap3]
 architectures = [ "aarch32" ]
 can-mcs = true
 
-[[platform]]
+[platform.pc99]
 name = "pc99"
 architectures = [ "ia32", "x86_64" ]
 x86-micro-arch = "generic"
@@ -312,40 +266,28 @@ can-simulate = true
 has-hypervisor = true
 can-mcs = true
 
-	[[platform.variation]]
-	name = "nehalem"
+	[platform.pc99.variation.nehalem]
 	x86-micro-arch = "nehalem"
 
-	[[platform.variation]]
-	name = "westmere"
+	[platform.pc99.variation.westmere]
 	x86-micro-arch = "westmere"
 
-	[[platform.variation]]
-	name = "westmere"
-	x86-micro-arch = "westmere"
-
-	[[platform.variation]]
-	name = "sandybridge"
+	[platform.pc99.variation.sandybridge]
 	x86-micro-arch = "sandy"
 
-	[[platform.variation]]
-	name = "ivybridge"
+	[platform.pc99.variation.ivybridge]
 	x86-micro-arch = "ivy"
 
-	[[platform.variation]]
-	name = "haswell"
+	[platform.pc99.variation.haswell]
 	x86-micro-arch = "haswell"
 
-	[[platform.variation]]
-	name = "broadwell"
+	[platform.pc99.variation.broadwell]
 	x86-micro-arch = "broadwell"
 
-	[[platform.variation]]
-	name = "skylake"
+	[platform.pc99.variation.skylake]
 	x86-micro-arch = "skylake"
 
-[[platform]]
-name = "qemu-cortex-a15"
+[platform.qemu-cortex-a15]
 architectures = [ "aarch32" ]
 can-simulate = true
 has-hypervisor = true
@@ -353,8 +295,7 @@ can-mcs = true
 arm-cpu = "cortex-a15"
 platform = "qemu-arm-virt"
 
-[[platform]]
-name = "qemu-cortex-a53"
+[platform.qemu-cortex-a53]
 architectures = [ "aarch64" ]
 can-simulate = true
 has-hypervisor = true
@@ -362,8 +303,7 @@ can-mcs = true
 arm-cpu = "cortex-a53"
 platform = "qemu-arm-virt"
 
-[[platform]]
-name = "qemu-cortex-a57"
+[platform.qemu-cortex-a57]
 architectures = [ "aarch64" ]
 can-simulate = true
 has-hypervisor = true
@@ -371,43 +311,36 @@ can-mcs = true
 arm-cpu = "cortex-a57"
 platform = "qemu-arm-virt"
 
-[[platform]]
-name = "rocketchip"
+[platform.rocketchip]
 architectures = [ "riscv32", "riscv64" ]
 can-mcs = true
 
-[[platform]]
-name = "rockpro64"
+[platform.rockpro64]
 architectures = [ "aarch64" ]
 has-hypervisor = true
 can-mcs = true
 
-[[platform]]
-name = "spike"
+[platform.spike]
 architectures = [ "riscv32", "riscv64" ]
 can-simulate = true
 can-mcs = true
 
-[[platform]]
-name = "tk1"
+[platform.tk1]
 architectures = [ "aarch32" ]
 has-hypervisor = true
 can-mcs = true
 
-[[platform]]
-name = "tx2"
+[platform.tx2]
 architectures = [ "aarch64" ]
 has-hypervisor = true
 can-mcs = true
 
-[[platform]]
-name = "zynq7000"
+[platform.zynq7000]
 architectures = [ "aarch32" ]
 can-simulate = true
 can-mcs = true
 
-[[platform]]
-name = "zynqmp"
+[platform.zynqmp]
 architectures = [ "aarch32", "aarch64" ]
 has-hypervisor = true
 
@@ -442,8 +375,7 @@ aarch64 = true
 # - command-line: A list of flags to make available at the command line
 # - flags: A project can also set flags that will be overridden by the platform.
 
-[[project]]
-name = "sel4test"
+[project.sel4test]
 repository = "seL4/sel4test-manifest"
 source-directory = "projects/sel4test"
 command-line = [

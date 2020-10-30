@@ -1,5 +1,6 @@
 //! Wrapper for invocations of CMake
 
+use crate::{Merge, MergeId, Named};
 use serde::{de, Deserialize, Deserializer};
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
@@ -8,13 +9,23 @@ use std::fmt;
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct Flag {
-    name: FlagId,
     description: String,
     /// Flag is passed to CMake
     #[serde(default)]
     variable: Option<String>,
     #[serde(default)]
     requires: BTreeSet<BTreeMap<FlagId, Requirement>>,
+}
+
+impl Merge for Flag {
+    fn merge(&mut self, other: Self) {
+        self.variable.merge(other.variable);
+        self.requires.merge(other.requires);
+    }
+}
+
+impl Named for Flag {
+    type Id = FlagId;
 }
 
 /// Identifier of an option that can be supplied to CMake
@@ -132,6 +143,8 @@ pub enum Value {
     Text(String),
 }
 
+impl MergeId for Value {}
+
 struct ValueVisitor;
 
 impl<'de> de::Visitor<'de> for ValueVisitor {
@@ -211,3 +224,9 @@ impl<'de> Deserialize<'de> for Value {
 /// Setting a set of options to particular values
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Deserialize)]
 pub struct Setting(#[serde(default)] BTreeMap<FlagId, Value>);
+
+impl Merge for Setting {
+    fn merge(&mut self, other: Self) {
+        self.0.merge(other.0);
+    }
+}

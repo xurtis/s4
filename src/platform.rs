@@ -1,6 +1,7 @@
 //! Platform definitions
 
 use crate::cmake::Setting;
+use crate::{Merge, Named, NamedMap};
 use anyhow::{bail, Error};
 use serde::Deserialize;
 use std::collections::BTreeSet;
@@ -12,14 +13,25 @@ use std::str::FromStr;
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct Platform {
-    name: PlatformId,
     /// Supported architectures
     architectures: BTreeSet<Sel4Architecture>,
     /// Variations
     #[serde(rename = "variation", alias = "variant", default)]
-    variations: BTreeSet<Variation>,
+    variations: NamedMap<Variation>,
     #[serde(flatten)]
     setting: Setting,
+}
+
+impl Merge for Platform {
+    fn merge(&mut self, other: Self) {
+        self.architectures.merge(other.architectures);
+        self.variations.merge(other.variations);
+        self.setting.merge(other.setting);
+    }
+}
+
+impl Named for Platform {
+    type Id = PlatformId;
 }
 
 /// A unique platform identifier
@@ -33,9 +45,18 @@ pub struct PlatformId(String);
 /// particular architecture with a certain set of features.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Deserialize)]
 pub struct Variation {
-    name: VariationId,
     #[serde(flatten)]
     setting: Setting,
+}
+
+impl Merge for Variation {
+    fn merge(&mut self, other: Self) {
+        self.setting.merge(other.setting);
+    }
+}
+
+impl Named for Variation {
+    type Id = VariationId;
 }
 
 /// An identifier of a variation within a platform

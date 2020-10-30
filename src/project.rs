@@ -1,6 +1,6 @@
 //! Descriptions of projects
 
-use crate::{FlagId, Setting};
+use crate::{FlagId, Merge, Named, Setting};
 use anyhow::{bail, Error, Result};
 use serde::Deserialize;
 use std::collections::BTreeSet;
@@ -12,7 +12,6 @@ use std::str::FromStr;
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct Project {
-    name: ProjectId,
     repository: Repository,
     /// Path to the CMake source directory
     #[serde(alias = "source-dir")]
@@ -22,6 +21,17 @@ pub struct Project {
     command_line: BTreeSet<FlagId>,
     #[serde(flatten)]
     setting: Setting,
+}
+
+impl Merge for Project {
+    fn merge(&mut self, other: Self) {
+        self.command_line.merge(other.command_line);
+        self.setting.merge(other.setting);
+    }
+}
+
+impl Named for Project {
+    type Id = ProjectId;
 }
 
 /// Identifier of a project
