@@ -7,11 +7,13 @@
 //! well as from the project root, can provide information on platforms, projects, hardware
 //! runners, and build environments.
 
+mod app;
 mod cmake;
 mod config;
 mod platform;
 mod project;
 
+pub use app::*;
 pub use cmake::*;
 pub use config::*;
 pub use platform::*;

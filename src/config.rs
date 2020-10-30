@@ -2,9 +2,14 @@
 
 use crate::{Flag, Platform, Project, Sel4Architecture, Setting};
 use anyhow::Result;
+use dirs::{config_dir, home_dir};
+use serde::de::DeserializeOwned;
 use serde::Deserialize;
 use std::collections::{BTreeMap, BTreeSet};
+use std::fs::File;
+use std::io::Read;
 use std::ops::Deref;
+use std::path::{Path, PathBuf};
 use toml;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Deserialize)]
@@ -29,11 +34,45 @@ pub struct Config {
 
 impl Config {
     /// The default builtin configuration
-    pub const BUILTIN_TOML: &'static [u8] = include_bytes!("config.toml");
+    const BUILTIN_TOML: &'static [u8] = include_bytes!("config.toml");
+
+    /// Configuration for s4
+    const CONFIG_FILES: &'static [&'static str] = &[".s4", ".s4.toml", "s4.toml"];
 
     /// Parse the builtin configuration file
     pub fn builtin() -> Result<Self> {
         toml::from_slice(Self::BUILTIN_TOML).map_err(|e| e.into())
+    }
+
+    /// Load the configuration
+    pub fn load() -> Result<Self> {
+        let mut configuration = Self::builtin()?;
+
+        fn all_config_files(directory: PathBuf) -> impl Iterator<Item = PathBuf> {
+            Config::CONFIG_FILES.iter().map(move |file| {
+                let mut path = directory.clone();
+                path.push(file);
+                path
+            })
+        };
+
+        home_dir()
+            .into_iter()
+            .chain(config_dir().into_iter())
+            .flat_map(all_config_files)
+            .try_for_each(|path| -> Result<()> {
+                if path.exists() {
+                    configuration.merge(toml_load(path)?);
+                }
+                Ok(())
+            })?;
+
+        Ok(configuration)
+    }
+
+    /// Get the defaults from the config
+    pub fn defaults(&self) -> &Defaults {
+        &self.defaults
     }
 }
 
@@ -249,4 +288,10 @@ where
     fn merge(&mut self, other: Self) {
         self.map.merge(other.map)
     }
+}
+
+fn toml_load<T: DeserializeOwned>(path: impl AsRef<Path>) -> Result<T> {
+    let mut data = Vec::new();
+    File::open(path.as_ref())?.read_to_end(&mut data)?;
+    toml::from_slice(&data).map_err(|e| e.into())
 }
