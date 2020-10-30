@@ -26,6 +26,16 @@ pub struct Config {
     projects: BTreeSet<Project>,
 }
 
+impl Config {
+    /// The default builtin configuration
+    pub const BUILTIN_TOML: &'static [u8] = include_bytes!("config.toml");
+
+    /// Parse the builtin configuration file
+    pub fn builtin() -> Result<Self> {
+        toml::from_slice(Self::BUILTIN_TOML).map_err(|e| e.into())
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct Defaults {
@@ -87,12 +97,54 @@ fn option_fallback<'t, T: AsRef<R>, R: ?Sized>(option: &'t Option<T>, fallback: 
     option_ref(option).unwrap_or(fallback)
 }
 
-impl Config {
-    /// The default builtin configuration
-    pub const BUILTIN_TOML: &'static [u8] = include_bytes!("config.toml");
+/// Merge instances of configuration structures together
+pub trait Merge<Other = Self> {
+    /// Update the current structure using a new instance
+    fn merge(&mut self, other: Other);
 
-    /// Parse the builtin configuration file
-    pub fn builtin() -> Result<Self> {
-        toml::from_slice(Self::BUILTIN_TOML).map_err(|e| e.into())
+    /// Update the current structure using a potential new instance
+    fn maybe_merge(&mut self, other: Option<Other>) {
+        if let Some(other) = other {
+            self.merge(other);
+        }
+    }
+}
+
+impl<T: Clone + Merge<T>, K: Ord> Merge for BTreeMap<K, T> {
+    fn merge(&mut self, other: BTreeMap<K, T>) {
+        for (key, other) in other.into_iter() {
+            if self.contains_key(&key) {
+                self.get_mut(&key).unwrap().merge(other);
+            } else {
+                self.insert(key, other);
+            }
+        }
+    }
+}
+
+impl<T: Ord> Merge for BTreeSet<T> {
+    fn merge(&mut self, other: BTreeSet<T>) {
+        for value in other {
+            self.insert(value);
+        }
+    }
+}
+
+impl<T> Merge for Option<T> {
+    fn merge(&mut self, other: Option<T>) {
+        if let Some(other) = other {
+            *self = Some(other)
+        }
+    }
+}
+
+/// Items that merge to themselves
+pub trait MergeId {}
+
+impl MergeId for String {}
+
+impl<T: MergeId> Merge for T {
+    fn merge(&mut self, other: Self) {
+        *self = other;
     }
 }
