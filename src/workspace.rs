@@ -1,7 +1,10 @@
 //! Project workspaces
 
 use crate::util::*;
-use crate::{Apps, Docker, Project, ProjectId, Setting};
+use crate::{
+    Apps, Config, Docker, Merge, PlatformId, Project, ProjectId, Sel4Architecture, Setting,
+    VariationId,
+};
 use anyhow::{bail, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
@@ -21,11 +24,30 @@ pub trait Context {
     }
 
     /// Obtain only the workspace context
-    fn workspace(self: Box<Self>) -> WorkspaceContext;
+    fn workspace(&self) -> &WorkspaceContext;
+
+    /// The identifier for the project
+    fn project(&self) -> &ProjectId;
 
     /// Create a new build context
-    fn create_build(self: Box<Self>, path: &Path, setting: Setting) -> Result<BuildContext> {
-        BuildContext::create(self.workspace(), setting, path)
+    fn create_build(
+        self: Box<Self>,
+        config: &Config,
+        path: &Path,
+        platform: PlatformId,
+        variation: Option<VariationId>,
+        architecture: Sel4Architecture,
+        setting: Setting,
+    ) -> Result<BuildContext> {
+        BuildContext::create(
+            config,
+            self.workspace(),
+            platform,
+            variation,
+            architecture,
+            setting,
+            path,
+        )
     }
 
     /// Create docker environment for a context
@@ -56,11 +78,14 @@ pub fn find_context() -> Result<Option<Box<dyn Context>>> {
             let build_root = path;
             let mut workspace_root = build_root.clone();
             workspace_root.push(&build.workspace_root);
+            let workspace = WorkspaceContext {
+                workspace_root,
+                workspace,
+            };
             let context = Box::new(BuildContext {
                 workspace,
                 build,
                 build_root,
-                workspace_root,
             });
             return Ok(Some(context));
         } else {
@@ -96,8 +121,12 @@ impl Context for WorkspaceContext {
         self.workspace_root.as_path()
     }
 
-    fn workspace(self: Box<Self>) -> Self {
-        *self
+    fn workspace(&self) -> &WorkspaceContext {
+        self
+    }
+
+    fn project(&self) -> &ProjectId {
+        &self.workspace.project
     }
 }
 
@@ -177,41 +206,45 @@ impl WorkspaceContext {
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Deserialize, Serialize)]
 pub struct BuildContext {
-    workspace: Workspace,
+    workspace: WorkspaceContext,
     build: Build,
     build_root: PathBuf,
-    workspace_root: PathBuf,
 }
 
 impl Context for BuildContext {
     fn workspace_root(&self) -> &Path {
-        self.workspace_root.as_path()
+        self.workspace.workspace_root()
     }
 
     fn maybe_build_root(&self) -> Option<&Path> {
         Some(&self.build_root)
     }
 
-    fn workspace(self: Box<Self>) -> WorkspaceContext {
-        WorkspaceContext {
-            workspace: self.workspace,
-            workspace_root: self.workspace_root,
-        }
+    fn project(&self) -> &ProjectId {
+        self.workspace.project()
+    }
+
+    fn workspace(&self) -> &WorkspaceContext {
+        &self.workspace
     }
 }
 
 impl BuildContext {
     /// Create a new build directory for a workspace
     pub fn create(
-        workspace: WorkspaceContext,
-        setting: Setting,
+        config: &Config,
+        workspace: &WorkspaceContext,
+        platform: PlatformId,
+        variation: Option<VariationId>,
+        architecture: Sel4Architecture,
+        added_setting: Setting,
         path: impl AsRef<Path>,
     ) -> Result<Self> {
         let WorkspaceContext {
             mut workspace,
             mut workspace_root,
             ..
-        } = workspace;
+        } = workspace.clone();
 
         let mut build_root = path.as_ref().to_owned();
         if build_root.is_dir() && !read_dir(&build_root)?.count() != 0 {
@@ -225,8 +258,23 @@ impl BuildContext {
             create_dir_all(&build_root)?;
         }
 
+        // Construct all settings
+        let mut setting = config.platform_setting(
+            &workspace.project,
+            &platform,
+            variation.as_ref(),
+            architecture,
+        )?;
+        setting.merge(added_setting);
+
         // Get relative path to workspace root
-        let build = Build::new(relative_path(&build_root, &workspace_root)?, setting);
+        let build = Build::new(
+            relative_path(&build_root, &workspace_root)?,
+            platform,
+            variation,
+            architecture,
+            setting,
+        );
         workspace
             .builds
             .insert(relative_path(&workspace_root, &build_root)?);
@@ -239,18 +287,21 @@ impl BuildContext {
         toml_save(&workspace, &workspace_root)?;
         workspace_root.pop();
 
+        let workspace = WorkspaceContext {
+            workspace,
+            workspace_root,
+        };
+
         Ok(BuildContext {
             workspace,
             build,
             build_root,
-            workspace_root,
         })
     }
 
     /// Load an existing build directory with a given workspace
     pub fn load(workspace: &WorkspaceContext, path: impl AsRef<Path>) -> Result<Self> {
-        let workspace_root = workspace.workspace_root.clone();
-        let workspace = workspace.workspace.clone();
+        let workspace = workspace.clone();
         let mut build_root = path.as_ref().to_owned();
 
         build_root.push(Build::FILENAME);
@@ -261,7 +312,6 @@ impl BuildContext {
             workspace,
             build,
             build_root,
-            workspace_root,
         })
     }
 
@@ -285,11 +335,27 @@ impl BuildContext {
         &mut self.build.setting
     }
 
+    pub fn update_setting(&mut self, setting: Setting) {
+        self.build.setting.merge(setting);
+    }
+
     pub fn save(&self) -> Result<()> {
         let mut build_root = self.build_root.clone();
         build_root.push(Build::FILENAME);
         toml_save(&self.build, &build_root)?;
         Ok(())
+    }
+
+    pub fn platform(&self) -> &PlatformId {
+        &self.build.platform
+    }
+
+    pub fn variation(&self) -> Option<&VariationId> {
+        self.build.variation.as_ref()
+    }
+
+    pub fn architecture(&self) -> Sel4Architecture {
+        self.build.architecture
     }
 }
 
@@ -314,6 +380,19 @@ impl Workspace {
 pub struct Build {
     /// Root directory of workspace
     workspace_root: PathBuf,
+    /// Configured platform
+    #[serde(rename = "build-platform")]
+    platform: PlatformId,
+    /// Configure variation (if any)
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        rename = "build-variation"
+    )]
+    variation: Option<VariationId>,
+    /// Configured architecture
+    #[serde(rename = "build-architecture")]
+    architecture: Sel4Architecture,
     /// Settings for the build directory
     #[serde(flatten)]
     setting: Setting,
@@ -323,9 +402,18 @@ impl Build {
     /// Filename used to indicate a build directory
     pub const FILENAME: &'static str = ".s4-build.toml";
 
-    fn new(workspace_root: PathBuf, setting: Setting) -> Self {
+    fn new(
+        workspace_root: PathBuf,
+        platform: PlatformId,
+        variation: Option<VariationId>,
+        architecture: Sel4Architecture,
+        setting: Setting,
+    ) -> Self {
         Build {
             workspace_root,
+            platform,
+            variation,
+            architecture,
             setting,
         }
     }

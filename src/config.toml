@@ -401,12 +401,16 @@ sel4-architecture = "ia32"
 # - repository: The name of the manifest repository in the form of <owner/org>/<repo> without a
 #   .git suffix
 # - source-directory: The project source directory relative to the root of the checkout repo
+# - root-server: Name of th ebinary used for the root server
+# - exit-phrase: Phrase sent to serial output when root server completes
 # - command-line: A list of flags to make available at the command line
 # - flags: A project can also set flags that will be overridden by the platform.
 
 [project.sel4test]
 repository = "seL4/sel4test-manifest"
 source-directory = "projects/sel4test"
+root-server = "sel4test-driver"
+exit-phrase = "All is well in the universe"
 command-line = [
 	"simulation",
 	"release",

@@ -2,7 +2,7 @@
 
 use crate::util::*;
 use crate::{Apps, BuildContext, Config, Context, FlagId, Merge, Named, Setting, CACHE_SUBDIR};
-use anyhow::{bail, Error, Result};
+use anyhow::{bail, format_err, Error, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
 use std::convert::TryFrom;
@@ -18,6 +18,11 @@ pub struct Project {
     /// Path to the CMake source directory
     #[serde(alias = "source-dir")]
     source_directory: PathBuf,
+    /// Name of the root server binary
+    #[serde(alias = "rootserver")]
+    root_server: String,
+    /// Phrase used to indicate the root server has completed
+    exit_phrase: String,
     /// Flags to make available via the command line when configuring a build directory
     #[serde(alias = "cmdline")]
     command_line: BTreeSet<FlagId>,
@@ -121,6 +126,53 @@ impl Project {
         config.cmake_args(&context.setting(), &mut command);
 
         Ok(command)
+    }
+
+    pub fn mq_run(&self, context: &BuildContext, apps: &Apps, system: Option<&str>) -> Result<()> {
+        let systems = system
+            .map(|sys| Ok(vec![sys.to_owned()]))
+            .unwrap_or_else(|| {
+                apps.machine_queue_match_system(context.platform(), context.variation())
+            })?;
+
+        for system in systems {
+            let result = self.try_mq_run(context, apps, system)?;
+
+            if result.success() {
+                return Ok(());
+            }
+        }
+
+        bail!("Could not run on any available system");
+    }
+
+    pub fn try_mq_run(
+        &self,
+        context: &BuildContext,
+        apps: &Apps,
+        system: String,
+    ) -> Result<ExitStatus> {
+        let mut command = apps.machine_queue()?;
+        command.arg("run");
+        command.arg("-c").arg(&self.exit_phrase);
+        command.arg("-s").arg(system);
+
+        let plat_image_name = format!("{}-{}", context.architecture(), context.platform().as_ref());
+
+        if context.architecture().architecture() == crate::X86 {
+            command
+                .arg("-f")
+                .arg(format!("images/kernel-{}", &plat_image_name));
+        }
+        command.arg("-f").arg(format!(
+            "images/{}-image-{}",
+            &self.root_server, &plat_image_name
+        ));
+
+        command.current_dir(context.build_root());
+
+        println!("{:?}", command);
+        Ok(command.status()?)
     }
 }
 

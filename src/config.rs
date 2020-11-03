@@ -5,7 +5,7 @@ use crate::{
     Flag, Platform, PlatformId, Project, ProjectId, Repository, Sel4Architecture, Setting,
     VariationId,
 };
-use anyhow::Result;
+use anyhow::{format_err, Result};
 use dirs::{config_dir, home_dir};
 use serde::Deserialize;
 use std::collections::{BTreeMap, BTreeSet};
@@ -105,44 +105,42 @@ impl Config {
         &self,
         project: &ProjectId,
         platform: &PlatformId,
+        variation: Option<&VariationId>,
         arch: Sel4Architecture,
-    ) -> Setting {
+    ) -> Result<Setting> {
         let mut setting = Setting::default();
 
-        if let Some(platform) = self.platforms.get(platform) {
-            setting.set_kernel_platform(platform.name());
-            setting.set_platform(platform.name());
-            setting.merge(platform.setting().clone());
+        let platform = self
+            .platforms
+            .get(platform)
+            .ok_or(format_err!("No such platform {}", platform.as_ref()))?;
+
+        setting.set_kernel_platform(platform.name());
+        setting.set_platform(platform.name());
+        setting.merge(platform.setting().clone());
+
+        if let Some(variation) = variation {
+            let variation = platform.variation(variation).ok_or(format_err!(
+                "No such platform variation {} for platform {}",
+                variation.as_ref(),
+                platform.name.as_ref()
+            ))?;
+            setting.set_platform(variation.name());
+            setting.merge(variation.setting().clone());
         }
 
         if let Some(arch) = self.architectures.get(&arch) {
             setting.merge(arch.clone());
         }
 
-        if let Some(project) = self.projects.get(project) {
-            setting.merge(project.setting().clone());
-        }
+        let project = self
+            .projects
+            .get(project)
+            .ok_or(format_err!("No such project {}", project.as_ref()))?;
 
-        setting
-    }
+        setting.merge(project.setting().clone());
 
-    pub fn variation_setting(
-        &self,
-        project: &ProjectId,
-        platform: &PlatformId,
-        variation: &VariationId,
-        arch: Sel4Architecture,
-    ) -> Setting {
-        let mut setting = self.platform_setting(project, platform, arch);
-
-        if let Some(platform) = self.platforms.get(platform) {
-            if let Some(variation) = platform.variation(variation) {
-                setting.set_platform(variation.name());
-                setting.merge(variation.setting().clone());
-            }
-        }
-
-        setting
+        Ok(setting)
     }
 }
 

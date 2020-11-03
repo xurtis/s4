@@ -3,7 +3,7 @@
 use crate::cmake::Setting;
 use crate::{Merge, NameRef, Named, NamedMap};
 use anyhow::{bail, Error};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
 use std::convert::TryFrom;
 use std::fmt;
@@ -45,7 +45,7 @@ impl Named for Platform {
 }
 
 /// A unique platform identifier
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Deserialize, Serialize)]
 #[serde(transparent)]
 pub struct PlatformId(String);
 
@@ -94,7 +94,7 @@ impl Named for Variation {
 }
 
 /// An identifier of a variation within a platform
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Deserialize, Serialize)]
 #[serde(transparent)]
 pub struct VariationId(String);
 
@@ -179,7 +179,7 @@ pub enum Architecture {
 }
 pub use Architecture::*;
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Deserialize)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Deserialize, Serialize)]
 #[serde(try_from = "String")]
 #[serde(into = "String")]
 pub enum Sel4Architecture {

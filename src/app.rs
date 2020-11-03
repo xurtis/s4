@@ -1,9 +1,9 @@
 //! Hooks into finding and running command-line applications
 
-use crate::{Defaults, Repository};
+use crate::{Defaults, PlatformId, Repository, VariationId};
 use anyhow::{bail, format_err, Result};
 use reqwest::blocking::get;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::env::{current_dir, var};
 use std::ffi::OsStr;
 use std::fs::OpenOptions;
@@ -22,6 +22,8 @@ pub struct Apps<'d> {
     docker: PathBuf,
     /// Docker is actually podman
     docker_impl: DockerImpl,
+    /// Path to mq.sh
+    machine_queue: Option<PathBuf>,
 }
 
 impl<'d> Apps<'d> {
@@ -39,11 +41,14 @@ impl<'d> Apps<'d> {
             Docker
         };
 
+        let machine_queue = find_app_path("mq.sh");
+
         Ok(Apps {
             defaults,
             repo,
             docker,
             docker_impl,
+            machine_queue,
         })
     }
 
@@ -80,6 +85,119 @@ impl<'d> Apps<'d> {
     /// Check if docker is actually podman
     pub fn docker_impl(&self) -> DockerImpl {
         self.docker_impl
+    }
+
+    pub fn machine_queue_available(&self) -> bool {
+        self.machine_queue.is_some()
+    }
+
+    /// Run images in the machine queue
+    pub fn machine_queue(&self) -> Result<Command> {
+        let machine_queue = self
+            .machine_queue
+            .as_ref()
+            .ok_or(format_err!("No mq.sh available"))?;
+        let mut command = Command::new(machine_queue);
+        command.stdin(Stdio::inherit());
+        command.stdout(Stdio::inherit());
+        command.stderr(Stdio::inherit());
+        Ok(command)
+    }
+
+    /// Get the systems from the machine queue
+    pub fn machine_queue_systems(
+        &self,
+    ) -> Result<BTreeMap<String, (PlatformId, Option<VariationId>)>> {
+        let mut command = self.machine_queue()?;
+        command.stdout(Stdio::piped());
+        command.stdin(Stdio::null());
+        let stdout = String::from_utf8(command.arg("system-tsv").output()?.stdout)?;
+
+        let mut lines = stdout.split('\n');
+        let headings = lines
+            .next()
+            .ok_or(format_err!("Invalid output from mq.sh systems list"))?;
+
+        let mut systems = BTreeMap::new();
+
+        for line in lines {
+            let fields = headings
+                .split('\t')
+                .zip(line.split('\t'))
+                .collect::<BTreeMap<_, _>>();
+
+            if let (Some(name), Some(plat)) = (fields.get("name"), fields.get("sel4_plat")) {
+                let (platform, variation) = if let Some(index) = plat.find(':') {
+                    (plat[..index].into(), Some(plat[index + 1..].into()))
+                } else {
+                    ((*plat).into(), None)
+                };
+
+                systems.insert((*name).into(), (platform, variation));
+            }
+        }
+
+        Ok(systems)
+    }
+
+    pub fn machine_queue_pools(&self) -> Result<BTreeMap<String, BTreeSet<String>>> {
+        let mut command = self.machine_queue()?;
+        command.stdout(Stdio::piped());
+        command.stdin(Stdio::null());
+        let stdout = String::from_utf8(command.arg("pool-tsv").output()?.stdout)?;
+
+        let mut pools = BTreeMap::new();
+
+        for pool in stdout.trim().split("\n") {
+            let mut pool = pool.trim().split("\t");
+            if let Some(name) = pool.next() {
+                pools.insert(
+                    name.to_owned(),
+                    pool.map(|system| system.to_owned()).collect(),
+                );
+            }
+        }
+
+        Ok(pools)
+    }
+
+    pub fn machine_queue_match_system(
+        &self,
+        platform: &PlatformId,
+        variation: Option<&VariationId>,
+    ) -> Result<Vec<String>> {
+        let pools = self.machine_queue_pools()?;
+        let mut systems = Vec::new();
+        for (name, (sys_platform, sys_variation)) in self.machine_queue_systems()? {
+            if platform == &sys_platform
+                && (variation.is_none() || variation == sys_variation.as_ref())
+            {
+                systems.push(name);
+            }
+        }
+
+        dbg!(&pools, &systems);
+
+        let systems_set = systems.iter().cloned().collect();
+
+        for (name, _) in pools
+            .into_iter()
+            .filter(|(_, pool)| pool.is_subset(&systems_set))
+        {
+            systems.insert(0, name);
+        }
+
+        if systems.len() > 0 {
+            Ok(systems)
+        } else if let Some(variation) = variation {
+            bail!(
+                "No matching system found for {}:{}",
+                platform.as_ref(),
+                variation.as_ref()
+            );
+        } else {
+            bail!("No matching system found for {}", platform.as_ref());
+        }
     }
 }
 
