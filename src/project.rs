@@ -25,6 +25,12 @@ pub struct Project {
     setting: Setting,
 }
 
+impl Project {
+    pub fn setting(&self) -> &Setting {
+        &self.setting
+    }
+}
+
 impl Merge for Project {
     fn merge(&mut self, other: Self) {
         self.command_line.merge(other.command_line);
@@ -53,11 +59,17 @@ impl Project {
         })
     }
 
-    pub fn init_build(&self, context: &BuildContext, apps: &Apps) -> Result<Command> {
+    pub fn init_build(
+        &self,
+        context: &BuildContext,
+        apps: &Apps,
+        args: impl Fn(&mut Command),
+    ) -> Result<Command> {
         let mut command = apps
             .docker()?
             .mount(Self::WORKSPACE_DOCKER_DIR, context.workspace_root())?
             .mount(Self::BUILD_DOCKER_DIR, context.build_root())?
+            .work_dir(Self::BUILD_DOCKER_DIR)?
             .run("cmake");
 
         // Alwayse generate ninja builds
@@ -69,6 +81,9 @@ impl Project {
             Self::WORKSPACE_DOCKER_DIR,
             CACHE_SUBDIR
         ));
+
+        // Add the command line arguments to be set directly
+        args(&mut command);
 
         // Use the build directory as mapped into docker
         command.arg("-B").arg(Self::BUILD_DOCKER_DIR);
@@ -108,9 +123,15 @@ impl From<String> for ProjectId {
     }
 }
 
-impl Into<String> for ProjectId {
-    fn into(self) -> String {
-        self.0
+impl From<&str> for ProjectId {
+    fn from(s: &str) -> Self {
+        ProjectId(s.to_owned())
+    }
+}
+
+impl AsRef<str> for ProjectId {
+    fn as_ref(&self) -> &str {
+        self.0.as_str()
     }
 }
 

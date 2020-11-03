@@ -155,10 +155,16 @@ impl WorkspaceContext {
 
     /// Get all of the build contexts for a given workspace
     pub fn builds<'w>(&'w self) -> impl Iterator<Item = Result<BuildContext>> + 'w {
-        self.workspace.builds.iter().map(move |build| {
+        self.workspace.builds.iter().flat_map(move |build| {
             let mut path = self.workspace_root.clone();
             path.push(build);
-            self.load_build(path)
+            // Skip non-existing builds
+            let build = if path.exists() {
+                Some(self.load_build(path))
+            } else {
+                None
+            };
+            build.into_iter()
         })
     }
 

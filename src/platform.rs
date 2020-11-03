@@ -1,7 +1,7 @@
 //! Platform definitions
 
 use crate::cmake::Setting;
-use crate::{Merge, Named, NamedMap};
+use crate::{Merge, NameRef, Named, NamedMap};
 use anyhow::{bail, Error};
 use serde::Deserialize;
 use std::collections::BTreeSet;
@@ -22,6 +22,16 @@ pub struct Platform {
     setting: Setting,
 }
 
+impl Platform {
+    pub fn setting(&self) -> &Setting {
+        &self.setting
+    }
+
+    pub fn variation(&self, id: &VariationId) -> Option<NameRef<Variation>> {
+        self.variations.get(id)
+    }
+}
+
 impl Merge for Platform {
     fn merge(&mut self, other: Self) {
         self.architectures.merge(other.architectures);
@@ -39,6 +49,24 @@ impl Named for Platform {
 #[serde(transparent)]
 pub struct PlatformId(String);
 
+impl From<String> for PlatformId {
+    fn from(s: String) -> Self {
+        PlatformId(s)
+    }
+}
+
+impl From<&str> for PlatformId {
+    fn from(s: &str) -> Self {
+        PlatformId(s.to_owned())
+    }
+}
+
+impl AsRef<str> for PlatformId {
+    fn as_ref(&self) -> &str {
+        self.0.as_str()
+    }
+}
+
 /// A variation of a particular platform
 ///
 /// Where a platform may refer to multiple compatible architectures, the variation can specify a
@@ -47,6 +75,12 @@ pub struct PlatformId(String);
 pub struct Variation {
     #[serde(flatten)]
     setting: Setting,
+}
+
+impl Variation {
+    pub fn setting(&self) -> &Setting {
+        &self.setting
+    }
 }
 
 impl Merge for Variation {
@@ -63,6 +97,24 @@ impl Named for Variation {
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Deserialize)]
 #[serde(transparent)]
 pub struct VariationId(String);
+
+impl From<String> for VariationId {
+    fn from(s: String) -> Self {
+        VariationId(s)
+    }
+}
+
+impl From<&str> for VariationId {
+    fn from(s: &str) -> Self {
+        VariationId(s.to_owned())
+    }
+}
+
+impl AsRef<str> for VariationId {
+    fn as_ref(&self) -> &str {
+        self.0.as_str()
+    }
+}
 
 /// The choice of a specific platform
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Deserialize)]

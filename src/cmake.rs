@@ -1,9 +1,12 @@
 //! Wrapper for invocations of CMake
 
-use crate::{Merge, MergeId, Named};
+use crate::{Merge, MergeId, NameRef, Named};
+use anyhow::{bail, Result};
 use serde::{de, Deserialize, Deserializer, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
+use std::iter::FromIterator;
+use std::process::Command;
 
 /// Definition of a configuration option
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Deserialize, Serialize)]
@@ -28,10 +31,80 @@ impl Named for Flag {
     type Id = FlagId;
 }
 
+impl Flag {
+    /// Check that a flag can be set to the given value
+    pub fn validate(self_ref: NameRef<Self>, setting: &Setting, value: &Value) -> Result<()> {
+        if self_ref.requires.len() > 0 {
+            match value {
+                Value::Boolean(true) => Self::check_requirements(self_ref, setting),
+                Value::Boolean(false) => Ok(()),
+                _ => {
+                    bail!(
+                        "Cannot set flag {} with requirements to non-boolean value: {}",
+                        self_ref.name(),
+                        value
+                    );
+                }
+            }
+        } else {
+            Ok(())
+        }
+    }
+
+    /// Check that requirements are met in a given setting for the flag to be set to true
+    fn check_requirements(self_ref: NameRef<Self>, setting: &Setting) -> Result<()> {
+        let satisfied = self_ref.requires.iter().any(|required| {
+            required
+                .iter()
+                .all(|(flag, requirement)| requirement.check(&setting.flag(flag)))
+        });
+
+        if !satisfied {
+            bail!(
+                "None of the requirement sets for the flag {} could be satisfied",
+                self_ref.name()
+            );
+        } else {
+            Ok(())
+        }
+    }
+
+    /// Set the CMake flag for a build directory
+    pub fn cmake_flag(&self, command: &mut Command, value: &Value) {
+        if let Some(variable) = &self.variable {
+            command.arg(format!("-D{}={}", variable, value.cmake_str()));
+        }
+    }
+}
+
 /// Identifier of an option that can be supplied to CMake
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Deserialize, Serialize)]
 #[serde(transparent)]
 pub struct FlagId(String);
+
+impl fmt::Display for FlagId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Display::fmt(&self.0, f)
+    }
+}
+
+impl From<String> for FlagId {
+    fn from(s: String) -> Self {
+        FlagId(s)
+    }
+}
+
+impl From<&str> for FlagId {
+    fn from(s: &str) -> Self {
+        FlagId(s.to_owned())
+    }
+}
+
+impl AsRef<str> for FlagId {
+    fn as_ref(&self) -> &str {
+        self.0.as_str()
+    }
+}
 
 /// A required setting for a particular flag
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
@@ -40,6 +113,15 @@ enum Requirement {
     Single(Value),
     /// Requires that a flag be set to any of a set of values
     Any(BTreeSet<Value>),
+}
+
+impl Requirement {
+    fn check(&self, value: &Value) -> bool {
+        match self {
+            Requirement::Single(required) => value == required,
+            Requirement::Any(requirement) => requirement.contains(value),
+        }
+    }
 }
 
 struct RequirementVisitor;
@@ -143,6 +225,32 @@ pub enum Value {
     Text(String),
 }
 
+impl Value {
+    pub fn is_bool(&self) -> bool {
+        match self {
+            Value::Boolean(_) => true,
+            _ => false,
+        }
+    }
+
+    fn cmake_str(&self) -> &str {
+        match self {
+            Value::Boolean(true) => "ON",
+            Value::Boolean(false) => "OFF",
+            Value::Text(text) => text.as_str(),
+        }
+    }
+}
+
+impl fmt::Display for Value {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Value::Boolean(value) => fmt::Display::fmt(value, f),
+            Value::Text(value) => fmt::Display::fmt(value, f),
+        }
+    }
+}
+
 impl MergeId for Value {}
 
 struct ValueVisitor;
@@ -225,8 +333,67 @@ impl<'de> Deserialize<'de> for Value {
 #[derive(Debug, Default, Clone, PartialEq, Eq, PartialOrd, Ord, Deserialize, Serialize)]
 pub struct Setting(#[serde(default)] BTreeMap<FlagId, Value>);
 
+impl fmt::Display for Setting {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{{")?;
+        let mut empty = true;
+        for (id, value) in self.0.iter() {
+            if empty {
+                empty = false;
+            } else {
+                write!(f, ",")?;
+            }
+            write!(f, " {}: {}", id, value)?;
+        }
+        if !empty {
+            write!(f, " ")?;
+        }
+        write!(f, "}}")
+    }
+}
+
+impl FromIterator<(FlagId, Value)> for Setting {
+    fn from_iter<T: IntoIterator<Item = (FlagId, Value)>>(iter: T) -> Self {
+        Setting(iter.into_iter().collect())
+    }
+}
+
 impl Merge for Setting {
     fn merge(&mut self, other: Self) {
         self.0.merge(other.0);
+    }
+}
+
+impl Setting {
+    const PLATFORM_FLAG: &'static str = "platform";
+    const KERNEL_PLATFORM_FLAG: &'static str = "kernel-platform";
+
+    /// Get the setting of all of the flags
+    pub fn flags(&self) -> impl Iterator<Item = (&FlagId, &Value)> {
+        self.0.iter()
+    }
+
+    /// Get the setting of a particular flag
+    pub fn flag(&self, flag: &FlagId) -> Value {
+        self.0.get(flag).cloned().unwrap_or(Value::Boolean(false))
+    }
+
+    /// Set a particular setting to a boolean value
+    pub fn set_bool(&mut self, flag: impl Into<FlagId>, value: bool) {
+        self.0.insert(flag.into(), Value::Boolean(value));
+    }
+
+    /// Set a particular setting to a text value
+    pub fn set_text(&mut self, flag: impl Into<FlagId>, value: impl AsRef<str>) {
+        self.0
+            .insert(flag.into(), Value::Text(value.as_ref().to_owned()));
+    }
+
+    pub fn set_platform(&mut self, platform: impl AsRef<str>) {
+        self.set_text(Self::PLATFORM_FLAG, platform);
+    }
+
+    pub fn set_kernel_platform(&mut self, platform: impl AsRef<str>) {
+        self.set_text(Self::KERNEL_PLATFORM_FLAG, platform);
     }
 }

@@ -1,13 +1,17 @@
 //! Configuration of the tool
 
 use crate::util::*;
-use crate::{Flag, Platform, Project, ProjectId, Repository, Sel4Architecture, Setting};
+use crate::{
+    Flag, Platform, PlatformId, Project, ProjectId, Repository, Sel4Architecture, Setting,
+    VariationId,
+};
 use anyhow::Result;
 use dirs::{config_dir, home_dir};
 use serde::Deserialize;
 use std::collections::{BTreeMap, BTreeSet};
 use std::ops::Deref;
 use std::path::PathBuf;
+use std::process::Command;
 use toml;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Deserialize)]
@@ -75,6 +79,72 @@ impl Config {
 
     pub fn project(&self, project: &ProjectId) -> Option<NameRef<Project>> {
         self.projects.get(project)
+    }
+
+    /// Ensure that a given set of sttings is a valid combination
+    pub fn check_setting(&self, setting: &Setting) -> Result<()> {
+        for (id, value) in setting.flags() {
+            if let Some(flag) = self.flags.get(id) {
+                Flag::validate(flag, setting, value)?;
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Apply the settings as CMake command line arguments
+    pub fn cmake_args<'c>(&'c self, setting: &'c Setting) -> impl Fn(&mut Command) + 'c {
+        move |command| {
+            for (id, value) in setting.flags() {
+                if let Some(flag) = self.flags.get(id) {
+                    flag.cmake_flag(command, value);
+                }
+            }
+        }
+    }
+
+    pub fn platform_setting(
+        &self,
+        project: &ProjectId,
+        platform: &PlatformId,
+        arch: Sel4Architecture,
+    ) -> Setting {
+        let mut setting = Setting::default();
+
+        if let Some(platform) = self.platforms.get(platform) {
+            setting.set_kernel_platform(platform.name());
+            setting.set_platform(platform.name());
+            setting.merge(platform.setting().clone());
+        }
+
+        if let Some(arch) = self.architectures.get(&arch) {
+            setting.merge(arch.clone());
+        }
+
+        if let Some(project) = self.projects.get(project) {
+            setting.merge(project.setting().clone());
+        }
+
+        setting
+    }
+
+    pub fn variation_setting(
+        &self,
+        project: &ProjectId,
+        platform: &PlatformId,
+        variation: &VariationId,
+        arch: Sel4Architecture,
+    ) -> Setting {
+        let mut setting = self.platform_setting(project, platform, arch);
+
+        if let Some(platform) = self.platforms.get(platform) {
+            if let Some(variation) = platform.variation(variation) {
+                setting.set_platform(variation.name());
+                setting.merge(variation.setting().clone());
+            }
+        }
+
+        setting
     }
 }
 
