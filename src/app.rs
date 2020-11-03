@@ -1,8 +1,9 @@
 //! Hooks into finding and running command-line applications
 
-use crate::Defaults;
+use crate::{Defaults, Repository};
 use anyhow::{bail, format_err, Result};
 use reqwest::blocking::get;
+use std::collections::BTreeMap;
 use std::env::{current_dir, var};
 use std::ffi::OsStr;
 use std::fs::OpenOptions;
@@ -52,8 +53,10 @@ impl<'d> Apps<'d> {
     }
 
     /// Create a new invocation of the repo init command
-    pub fn repo_init(&self, url: &str) -> Result<ExitStatus> {
+    pub fn repo_init(&self, project: &Repository) -> Result<ExitStatus> {
         let mut repo = self.repo();
+
+        let url = self.defaults.git_repo_url(project);
 
         repo.arg("init");
         repo.arg("--manifest-url").arg(url);
@@ -98,8 +101,8 @@ fn find_or_maybe_download(app: impl AsRef<Path>, url: Option<&str>) -> Result<Op
 pub struct Docker<'a> {
     /// Reference to app config
     apps: &'a Apps<'a>,
-    /// The full path to the host directory
-    host_dir: PathBuf,
+    /// Addittional mounts to add to the system
+    mounts: BTreeMap<PathBuf, PathBuf>,
     /// The path to the working directory relative to the host directory
     work_dir: PathBuf,
 }
@@ -109,33 +112,39 @@ impl<'a> Docker<'a> {
 
     /// Create a new docker command invocation
     pub fn new(apps: &'a Apps<'a>) -> Result<Self> {
+        let mut mounts = BTreeMap::new();
+        mounts.insert(Self::HOST_DIR.into(), current_dir()?.canonicalize()?);
         let docker = Docker {
             apps,
-            host_dir: current_dir()?.canonicalize()?,
-            work_dir: ".".into(),
+            mounts,
+            work_dir: Self::HOST_DIR.into(),
         };
         Ok(docker)
     }
 
     /// Set the host path for the command
-    pub fn host_dir(mut self, path: impl AsRef<Path>) -> Self {
-        self.host_dir = path.as_ref().to_owned();
-        self
+    pub fn mount(mut self, internal: impl AsRef<Path>, external: impl AsRef<Path>) -> Result<Self> {
+        self.mounts.insert(
+            internal.as_ref().to_owned(),
+            external.as_ref().canonicalize()?,
+        );
+        Ok(self)
+    }
+
+    pub fn host_dir(self, external: impl AsRef<Path>) -> Result<Self> {
+        self.mount(Self::HOST_DIR, external)
     }
 
     /// Set the working directory for the command
     pub fn work_dir(mut self, path: impl AsRef<Path>) -> Result<Self> {
-        self.work_dir = path.as_ref().strip_prefix(&self.host_dir)?.to_owned();
+        self.work_dir = path.as_ref().to_owned();
         Ok(self)
     }
 
     /// Run a command in an image
     pub fn run(self, program: impl AsRef<OsStr>) -> Command {
-        let mut command = Command::new(&self.apps.docker);
+        let mut command = self.command();
         command
-            .stdin(Stdio::inherit())
-            .stdout(Stdio::inherit())
-            .stderr(Stdio::inherit())
             .arg("run")
             .args(&["-it", "--rm"])
             .args(&["--hostname", "s4"])
@@ -147,12 +156,40 @@ impl<'a> Docker<'a> {
                 format!("{}:{}", get_effective_uid(), get_effective_gid()),
             ]),
         };
-        command
-            .arg("--volume")
-            .arg(format!("{}:{}:z", self.host_dir.display(), Self::HOST_DIR));
+        for (internal, external) in self.mounts.into_iter() {
+            command
+                .arg("--volume")
+                .arg(format!("{}:{}:z", external.display(), internal.display()));
+        }
         command.arg("--workdir").arg(Self::host_path(self.work_dir));
         command.arg(self.apps.defaults.docker_image());
         command.arg(program);
+        command
+    }
+
+    /// Update the docker image
+    pub fn update(self) -> Result<()> {
+        let mut command = self.command();
+        if !command
+            .arg("pull")
+            .arg(self.apps.defaults.docker_image())
+            .status()?
+            .success()
+        {
+            bail!(
+                "Failued to update docker image: {}",
+                self.apps.defaults.docker_image()
+            );
+        }
+        Ok(())
+    }
+
+    fn command(&self) -> Command {
+        let mut command = Command::new(&self.apps.docker);
+        command
+            .stdin(Stdio::inherit())
+            .stdout(Stdio::inherit())
+            .stderr(Stdio::inherit());
         command
     }
 

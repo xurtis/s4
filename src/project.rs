@@ -1,15 +1,17 @@
 //! Descriptions of projects
 
-use crate::{FlagId, Merge, Named, Setting};
+use crate::util::*;
+use crate::{Apps, BuildContext, Context, FlagId, Merge, Named, Setting, CACHE_SUBDIR};
 use anyhow::{bail, Error, Result};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
 use std::convert::TryFrom;
 use std::fmt;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+use std::process::Command;
 use std::str::FromStr;
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct Project {
     repository: Repository,
@@ -34,13 +36,86 @@ impl Named for Project {
     type Id = ProjectId;
 }
 
+impl Project {
+    pub const WORKSPACE_DOCKER_DIR: &'static str = "/workspace";
+    pub const BUILD_DOCKER_DIR: &'static str = "/build";
+    pub const CMAKE_CACHE_FILE: &'static str = "settings.cmake";
+
+    pub fn init(&self, workspace_root: impl AsRef<Path>, apps: &Apps) -> Result<()> {
+        in_dir(workspace_root, || {
+            if !apps.repo_init(&self.repository)?.success() {
+                bail!("Failed to initialise project")
+            }
+            if !apps.repo().arg("sync").status()?.success() {
+                bail!("Failed to sync project")
+            }
+            Ok(())
+        })
+    }
+
+    pub fn init_build(&self, context: &BuildContext, apps: &Apps) -> Result<Command> {
+        let mut command = apps
+            .docker()?
+            .mount(Self::WORKSPACE_DOCKER_DIR, context.workspace_root())?
+            .mount(Self::BUILD_DOCKER_DIR, context.build_root())?
+            .run("cmake");
+
+        // Alwayse generate ninja builds
+        command.arg("-G").arg("Ninja");
+
+        // Use the workspace cache directory
+        command.arg(format!(
+            "-DSEL4_CACHE_DIR={}/{}",
+            Self::WORKSPACE_DOCKER_DIR,
+            CACHE_SUBDIR
+        ));
+
+        // Use the build directory as mapped into docker
+        command.arg("-B").arg(Self::BUILD_DOCKER_DIR);
+
+        // Use the source directory as mapped into docker
+        let mut source_dir = PathBuf::new();
+        source_dir.push(Self::WORKSPACE_DOCKER_DIR);
+        source_dir.push(&self.source_directory);
+        command.arg("-S").arg(&source_dir);
+
+        // Use the cache file from the source directory
+        source_dir.push(Self::CMAKE_CACHE_FILE);
+        command.arg("-C").arg(source_dir);
+
+        Ok(command)
+    }
+}
+
 /// Identifier of a project
-#[derive(Debug, Clone, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, Deserialize, PartialEq, Eq, PartialOrd, Ord, Serialize)]
 #[serde(transparent)]
 pub struct ProjectId(String);
 
+impl ProjectId {
+    /// Special project name to use project defined in workspace repository
+    const AUTO: &'static str = "auto";
+
+    /// The special project identifier that is used to define a project with its own repository
+    pub fn auto() -> Self {
+        ProjectId(Self::AUTO.to_owned())
+    }
+}
+
+impl From<String> for ProjectId {
+    fn from(s: String) -> Self {
+        ProjectId(s)
+    }
+}
+
+impl Into<String> for ProjectId {
+    fn into(self) -> String {
+        self.0
+    }
+}
+
 /// Repository of project
-#[derive(Debug, Clone, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, Deserialize, PartialEq, Eq, PartialOrd, Ord, Serialize)]
 #[serde(try_from = "String")]
 #[serde(into = "String")]
 pub struct Repository(String, String);

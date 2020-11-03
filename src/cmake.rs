@@ -1,12 +1,12 @@
 //! Wrapper for invocations of CMake
 
 use crate::{Merge, MergeId, Named};
-use serde::{de, Deserialize, Deserializer};
+use serde::{de, Deserialize, Deserializer, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 
 /// Definition of a configuration option
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct Flag {
     description: String,
@@ -29,12 +29,12 @@ impl Named for Flag {
 }
 
 /// Identifier of an option that can be supplied to CMake
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Deserialize, Serialize)]
 #[serde(transparent)]
 pub struct FlagId(String);
 
 /// A required setting for a particular flag
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
 enum Requirement {
     /// Requires that a flag be set to a specific value
     Single(Value),
@@ -137,7 +137,7 @@ impl<'de> Deserialize<'de> for Requirement {
 }
 
 /// Value assigned to an option
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
 pub enum Value {
     Boolean(bool),
     Text(String),
@@ -222,7 +222,7 @@ impl<'de> Deserialize<'de> for Value {
 }
 
 /// Setting a set of options to particular values
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Deserialize)]
+#[derive(Debug, Default, Clone, PartialEq, Eq, PartialOrd, Ord, Deserialize, Serialize)]
 pub struct Setting(#[serde(default)] BTreeMap<FlagId, Value>);
 
 impl Merge for Setting {

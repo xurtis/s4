@@ -12,12 +12,15 @@ mod cmake;
 mod config;
 mod platform;
 mod project;
+mod util;
+mod workspace;
 
 pub use app::*;
 pub use cmake::*;
 pub use config::*;
 pub use platform::*;
 pub use project::*;
+pub use workspace::*;
 
 #[cfg(test)]
 mod tests {

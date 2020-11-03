@@ -1,15 +1,13 @@
 //! Configuration of the tool
 
-use crate::{Flag, Platform, Project, Sel4Architecture, Setting};
+use crate::util::*;
+use crate::{Flag, Platform, Project, ProjectId, Repository, Sel4Architecture, Setting};
 use anyhow::Result;
 use dirs::{config_dir, home_dir};
-use serde::de::DeserializeOwned;
 use serde::Deserialize;
 use std::collections::{BTreeMap, BTreeSet};
-use std::fs::File;
-use std::io::Read;
 use std::ops::Deref;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use toml;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Deserialize)]
@@ -74,6 +72,10 @@ impl Config {
     pub fn defaults(&self) -> &Defaults {
         &self.defaults
     }
+
+    pub fn project(&self, project: &ProjectId) -> Option<NameRef<Project>> {
+        self.projects.get(project)
+    }
 }
 
 impl Merge for Config {
@@ -114,6 +116,11 @@ impl Defaults {
     /// Get the git server base URL
     pub fn git_server(&self) -> &str {
         option_fallback(&self.git_server, Self::GIT_SERVER)
+    }
+
+    /// Get the URL of a project from the git server
+    pub fn git_repo_url(&self, repo: &Repository) -> String {
+        format!("{}/{}.git", self.git_server(), repo)
     }
 
     /// Docker image to execute for build tools
@@ -266,8 +273,7 @@ where
     T::Id: for<'nde> Deserialize<'nde>,
 {
     /// Get an object with its name from the map
-    pub fn get(&self, index: impl AsRef<T::Id>) -> Option<NameRef<T>> {
-        let index = index.as_ref();
+    pub fn get(&self, index: &T::Id) -> Option<NameRef<T>> {
         self.map
             .get_key_value(index)
             .map(move |(k, v)| NameRef::new(v, k))
@@ -288,10 +294,4 @@ where
     fn merge(&mut self, other: Self) {
         self.map.merge(other.map)
     }
-}
-
-fn toml_load<T: DeserializeOwned>(path: impl AsRef<Path>) -> Result<T> {
-    let mut data = Vec::new();
-    File::open(path.as_ref())?.read_to_end(&mut data)?;
-    toml::from_slice(&data).map_err(|e| e.into())
 }
