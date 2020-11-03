@@ -1,14 +1,14 @@
 //! Descriptions of projects
 
 use crate::util::*;
-use crate::{Apps, BuildContext, Context, FlagId, Merge, Named, Setting, CACHE_SUBDIR};
+use crate::{Apps, BuildContext, Config, Context, FlagId, Merge, Named, Setting, CACHE_SUBDIR};
 use anyhow::{bail, Error, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
 use std::convert::TryFrom;
 use std::fmt;
 use std::path::{Path, PathBuf};
-use std::process::Command;
+use std::process::{Command, ExitStatus};
 use std::str::FromStr;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Deserialize, Serialize)]
@@ -63,14 +63,9 @@ impl Project {
         &self,
         context: &BuildContext,
         apps: &Apps,
-        args: impl Fn(&mut Command),
-    ) -> Result<Command> {
-        let mut command = apps
-            .docker()?
-            .mount(Self::WORKSPACE_DOCKER_DIR, context.workspace_root())?
-            .mount(Self::BUILD_DOCKER_DIR, context.build_root())?
-            .work_dir(Self::BUILD_DOCKER_DIR)?
-            .run("cmake");
+        config: &Config,
+    ) -> Result<ExitStatus> {
+        let mut command = self.cmake(context, apps, config)?;
 
         // Alwayse generate ninja builds
         command.arg("-G").arg("Ninja");
@@ -81,9 +76,6 @@ impl Project {
             Self::WORKSPACE_DOCKER_DIR,
             CACHE_SUBDIR
         ));
-
-        // Add the command line arguments to be set directly
-        args(&mut command);
 
         // Use the build directory as mapped into docker
         command.arg("-B").arg(Self::BUILD_DOCKER_DIR);
@@ -97,6 +89,36 @@ impl Project {
         // Use the cache file from the source directory
         source_dir.push(Self::CMAKE_CACHE_FILE);
         command.arg("-C").arg(source_dir);
+
+        println!("{:?}", command);
+        Ok(command.status()?)
+    }
+
+    pub fn update_build(
+        &self,
+        context: &BuildContext,
+        apps: &Apps,
+        config: &Config,
+    ) -> Result<ExitStatus> {
+        let mut command = self.cmake(context, apps, config)?;
+        command.arg(Self::BUILD_DOCKER_DIR);
+        Ok(command.status()?)
+    }
+
+    fn cmake(&self, context: &BuildContext, apps: &Apps, config: &Config) -> Result<Command> {
+        // Make sure we can actually build with the given settings
+        config.check_setting(context.setting())?;
+        context.save()?;
+
+        let mut command = apps
+            .docker()?
+            .mount(Self::WORKSPACE_DOCKER_DIR, context.workspace_root())?
+            .mount(Self::BUILD_DOCKER_DIR, context.build_root())?
+            .work_dir(Self::BUILD_DOCKER_DIR)?
+            .run("cmake");
+
+        // Add the command line arguments to be set directly
+        config.cmake_args(&context.setting(), &mut command);
 
         Ok(command)
     }

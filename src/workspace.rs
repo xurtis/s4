@@ -24,8 +24,8 @@ pub trait Context {
     fn workspace(self: Box<Self>) -> WorkspaceContext;
 
     /// Create a new build context
-    fn create_build(self: Box<Self>, path: &Path) -> Result<BuildContext> {
-        BuildContext::create(self.workspace(), path)
+    fn create_build(self: Box<Self>, path: &Path, setting: Setting) -> Result<BuildContext> {
+        BuildContext::create(self.workspace(), setting, path)
     }
 
     /// Create docker environment for a context
@@ -85,6 +85,7 @@ pub fn find_context() -> Result<Option<Box<dyn Context>>> {
 }
 
 /// Working context
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Deserialize, Serialize)]
 pub struct WorkspaceContext {
     workspace: Workspace,
     workspace_root: PathBuf,
@@ -174,6 +175,7 @@ impl WorkspaceContext {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Deserialize, Serialize)]
 pub struct BuildContext {
     workspace: Workspace,
     build: Build,
@@ -200,7 +202,11 @@ impl Context for BuildContext {
 
 impl BuildContext {
     /// Create a new build directory for a workspace
-    pub fn create(workspace: WorkspaceContext, path: impl AsRef<Path>) -> Result<Self> {
+    pub fn create(
+        workspace: WorkspaceContext,
+        setting: Setting,
+        path: impl AsRef<Path>,
+    ) -> Result<Self> {
         let WorkspaceContext {
             mut workspace,
             mut workspace_root,
@@ -220,7 +226,7 @@ impl BuildContext {
         }
 
         // Get relative path to workspace root
-        let build = Build::new(relative_path(&build_root, &workspace_root)?);
+        let build = Build::new(relative_path(&build_root, &workspace_root)?, setting);
         workspace
             .builds
             .insert(relative_path(&workspace_root, &build_root)?);
@@ -270,10 +276,26 @@ impl BuildContext {
             .run("ninja");
         Ok(command)
     }
+
+    pub fn setting(&self) -> &Setting {
+        &self.build.setting
+    }
+
+    pub fn setting_mut(&mut self) -> &mut Setting {
+        &mut self.build.setting
+    }
+
+    pub fn save(&self) -> Result<()> {
+        let mut build_root = self.build_root.clone();
+        build_root.push(Build::FILENAME);
+        toml_save(&self.build, &build_root)?;
+        Ok(())
+    }
 }
 
 /// Workspace directory for a project
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Deserialize, Serialize)]
+#[serde(rename_all = "kebab-case")]
 pub struct Workspace {
     /// Project associated with workspace
     project: ProjectId,
@@ -288,6 +310,7 @@ impl Workspace {
 
 /// Build directory configuration
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Deserialize, Serialize)]
+#[serde(rename_all = "kebab-case")]
 pub struct Build {
     /// Root directory of workspace
     workspace_root: PathBuf,
@@ -300,9 +323,7 @@ impl Build {
     /// Filename used to indicate a build directory
     pub const FILENAME: &'static str = ".s4-build.toml";
 
-    fn new(workspace_root: PathBuf) -> Self {
-        let setting = Setting::default();
-
+    fn new(workspace_root: PathBuf, setting: Setting) -> Self {
         Build {
             workspace_root,
             setting,

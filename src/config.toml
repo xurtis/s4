@@ -274,24 +274,31 @@ can-mcs = true
 
 	[platform.pc99.variation.nehalem]
 	x86-micro-arch = "nehalem"
+	platform = "pc99"
 
 	[platform.pc99.variation.westmere]
 	x86-micro-arch = "westmere"
+	platform = "pc99"
 
 	[platform.pc99.variation.sandybridge]
 	x86-micro-arch = "sandy"
+	platform = "pc99"
 
 	[platform.pc99.variation.ivybridge]
 	x86-micro-arch = "ivy"
+	platform = "pc99"
 
 	[platform.pc99.variation.haswell]
 	x86-micro-arch = "haswell"
+	platform = "pc99"
 
 	[platform.pc99.variation.broadwell]
 	x86-micro-arch = "broadwell"
+	platform = "pc99"
 
 	[platform.pc99.variation.skylake]
 	x86-micro-arch = "skylake"
+	platform = "pc99"
 
 [platform.qemu-cortex-a15]
 architectures = [ "aarch32" ]
@@ -354,25 +361,25 @@ has-hypervisor = true
 # ==================
 
 [architecture.riscv64]
-cross_compiler_prefix = "riscv64-unknown-linux-gnu-"
+cross-compiler-prefix = "riscv64-unknown-linux-gnu-"
 riscv64 = true
 architecture = "riscv"
 sel4-architecture = "riscv64"
 
 [architecture.riscv32]
-cross_compiler_prefix = "riscv64-unknown-linux-gnu-"
+cross-compiler-prefix = "riscv64-unknown-linux-gnu-"
 riscv32 = true
 architecture = "riscv"
 sel4-architecture = "riscv32"
 
 [architecture.aarch32]
-cross_compiler_prefix = "arm-linux-gnueabi-"
+cross-compiler-prefix = "arm-linux-gnueabi-"
 aarch32 = true
 architecture = "arm"
 sel4-architecture = "aarch32"
 
 [architecture.aarch64]
-cross_compiler_prefix = "aarch64-linux-gnu-"
+cross-compiler-prefix = "aarch64-linux-gnu-"
 aarch64 = true
 architecture = "arm"
 sel4-architecture = "aarch64"

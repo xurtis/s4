@@ -2,7 +2,7 @@
 
 use crate::{Merge, MergeId, NameRef, Named};
 use anyhow::{bail, Result};
-use serde::{de, Deserialize, Deserializer, Serialize};
+use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 use std::iter::FromIterator;
@@ -219,7 +219,7 @@ impl<'de> Deserialize<'de> for Requirement {
 }
 
 /// Value assigned to an option
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Value {
     Boolean(bool),
     Text(String),
@@ -326,6 +326,15 @@ impl<'de> de::Visitor<'de> for ValueVisitor {
 impl<'de> Deserialize<'de> for Value {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         deserializer.deserialize_any(ValueVisitor)
+    }
+}
+
+impl Serialize for Value {
+    fn serialize<S: Serializer>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error> {
+        match self {
+            Value::Boolean(value) => serializer.serialize_bool(*value),
+            Value::Text(value) => serializer.serialize_str(value),
+        }
     }
 }
 

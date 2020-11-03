@@ -93,12 +93,10 @@ impl Config {
     }
 
     /// Apply the settings as CMake command line arguments
-    pub fn cmake_args<'c>(&'c self, setting: &'c Setting) -> impl Fn(&mut Command) + 'c {
-        move |command| {
-            for (id, value) in setting.flags() {
-                if let Some(flag) = self.flags.get(id) {
-                    flag.cmake_flag(command, value);
-                }
+    pub fn cmake_args<'c>(&self, setting: &Setting, command: &mut Command) {
+        for (id, value) in setting.flags() {
+            if let Some(flag) = self.flags.get(id) {
+                flag.cmake_flag(command, value);
             }
         }
     }
