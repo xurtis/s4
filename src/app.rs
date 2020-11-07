@@ -30,8 +30,11 @@ impl<'d> Apps<'d> {
     /// Try and find all dependent apps
     pub fn try_new(defaults: &'d Defaults) -> Result<Self> {
         let repo = find_or_download("repo", defaults.repo_url())?;
-        let docker = find_app_path("docker")
-            .ok_or(format_err!("docker or podman-docker must be installed"))?;
+        let docker = find_app_path("podman")
+            .or(find_app_path("docker"))
+            .ok_or(format_err!(
+                "podman, docker, or podman-docker must be installed"
+            ))?;
 
         let docker_version = Command::new(&docker).arg("--version").output()?.stdout;
         let docker_version = String::from_utf8(docker_version)?;
@@ -41,7 +44,7 @@ impl<'d> Apps<'d> {
             Docker
         };
 
-        let machine_queue = find_app_path("mq.sh");
+        let machine_queue = find_app_path("mq-all.sh").or_else(|| find_app_path("mq.sh"));
 
         Ok(Apps {
             defaults,
@@ -175,8 +178,6 @@ impl<'d> Apps<'d> {
                 systems.push(name);
             }
         }
-
-        dbg!(&pools, &systems);
 
         let systems_set = systems.iter().cloned().collect();
 

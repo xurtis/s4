@@ -18,6 +18,8 @@ pub struct Flag {
     variable: Option<String>,
     #[serde(default)]
     requires: BTreeSet<BTreeMap<FlagId, Requirement>>,
+    #[serde(default)]
+    type_: Option<Type>,
 }
 
 impl Merge for Flag {
@@ -32,6 +34,24 @@ impl Named for Flag {
 }
 
 impl Flag {
+    pub fn new(
+        description: impl AsRef<str>,
+        variable: Option<impl AsRef<str>>,
+        type_: Option<Type>,
+    ) -> Self {
+        let description = description.as_ref().to_owned();
+        let variable = variable.map(|var| var.as_ref().to_owned());
+        let requires = BTreeSet::new();
+        let type_ = type_;
+
+        Flag {
+            description,
+            variable,
+            requires,
+            type_,
+        }
+    }
+
     /// Check that a flag can be set to the given value
     pub fn validate(self_ref: NameRef<Self>, setting: &Setting, value: &Value) -> Result<()> {
         if self_ref.requires.len() > 0 {
@@ -74,6 +94,10 @@ impl Flag {
         if let Some(variable) = &self.variable {
             command.arg(format!("-D{}={}", variable, value.cmake_str()));
         }
+    }
+
+    pub fn ty(&self) -> Option<Type> {
+        self.type_
     }
 }
 
@@ -216,6 +240,15 @@ impl<'de> Deserialize<'de> for Requirement {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         deserializer.deserialize_any(RequirementVisitor)
     }
+}
+
+/// Type of value assigned to an option
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Deserialize, Serialize)]
+pub enum Type {
+    #[serde(rename = "bool")]
+    Boolean,
+    #[serde(rename = "string")]
+    Text,
 }
 
 /// Value assigned to an option

@@ -11,18 +11,18 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, ExitStatus};
 use std::str::FromStr;
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Deserialize, Serialize)]
+#[derive(Debug, Default, Clone, PartialEq, Eq, PartialOrd, Ord, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct Project {
     repository: Repository,
     /// Path to the CMake source directory
     #[serde(alias = "source-dir")]
-    source_directory: PathBuf,
+    source_directory: Option<PathBuf>,
     /// Name of the root server binary
     #[serde(alias = "rootserver")]
-    root_server: String,
+    root_server: Option<String>,
     /// Phrase used to indicate the root server has completed
-    exit_phrase: String,
+    exit_phrase: Option<String>,
     /// Flags to make available via the command line when configuring a build directory
     #[serde(alias = "cmdline")]
     command_line: BTreeSet<FlagId>,
@@ -88,7 +88,13 @@ impl Project {
         // Use the source directory as mapped into docker
         let mut source_dir = PathBuf::new();
         source_dir.push(Self::WORKSPACE_DOCKER_DIR);
-        source_dir.push(&self.source_directory);
+        let source_directory = self
+            .source_directory
+            .as_ref()
+            .cloned()
+            .map(Ok)
+            .unwrap_or(context.inferred_source())?;
+        source_dir.push(source_directory);
         command.arg("-S").arg(&source_dir);
 
         // Use the cache file from the source directory
@@ -128,7 +134,13 @@ impl Project {
         Ok(command)
     }
 
-    pub fn mq_run(&self, context: &BuildContext, apps: &Apps, system: Option<&str>) -> Result<()> {
+    pub fn mq_run(
+        &self,
+        context: &BuildContext,
+        config: &Config,
+        apps: &Apps,
+        system: Option<&str>,
+    ) -> Result<()> {
         let systems = system
             .map(|sys| Ok(vec![sys.to_owned()]))
             .unwrap_or_else(|| {
@@ -136,7 +148,7 @@ impl Project {
             })?;
 
         for system in systems {
-            let result = self.try_mq_run(context, apps, system)?;
+            let result = self.try_mq_run(context, config, apps, system)?;
 
             if result.success() {
                 return Ok(());
@@ -146,33 +158,44 @@ impl Project {
         bail!("Could not run on any available system");
     }
 
-    pub fn try_mq_run(
+    fn try_mq_run(
         &self,
         context: &BuildContext,
+        config: &Config,
         apps: &Apps,
         system: String,
     ) -> Result<ExitStatus> {
         let mut command = apps.machine_queue()?;
         command.arg("run");
-        command.arg("-c").arg(&self.exit_phrase);
+        command.arg("-c").arg(
+            self.exit_phrase
+                .as_ref()
+                .map(|s| s.as_str())
+                .unwrap_or(config.defaults().exit_phrase()),
+        );
         command.arg("-s").arg(system);
 
-        let plat_image_name = format!("{}-{}", context.architecture(), context.platform().as_ref());
-
         if context.architecture().architecture() == crate::X86 {
-            command
-                .arg("-f")
-                .arg(format!("images/kernel-{}", &plat_image_name));
+            command.arg("-f").arg(context.kernel_image_path()?);
         }
-        command.arg("-f").arg(format!(
-            "images/{}-image-{}",
-            &self.root_server, &plat_image_name
-        ));
+
+        let root_server = self
+            .root_server
+            .as_ref()
+            .cloned()
+            .map(Ok)
+            .unwrap_or_else(|| context.inferred_root_server())?;
+        command.arg("-f").arg(context.image_path(&root_server)?);
 
         command.current_dir(context.build_root());
 
         println!("{:?}", command);
         Ok(command.status()?)
+    }
+
+    /// Flags that should appear on the command-line
+    pub fn command_line_flags(&self) -> impl Iterator<Item = &FlagId> {
+        self.command_line.iter()
     }
 }
 
@@ -184,6 +207,9 @@ pub struct ProjectId(String);
 impl ProjectId {
     /// Special project name to use project defined in workspace repository
     const AUTO: &'static str = "auto";
+
+    /// Name given to projects without an explicit configuration
+    pub const UNNAMED: Self = ProjectId(String::new());
 
     /// The special project identifier that is used to define a project with its own repository
     pub fn auto() -> Self {
@@ -210,7 +236,7 @@ impl AsRef<str> for ProjectId {
 }
 
 /// Repository of project
-#[derive(Debug, Clone, Deserialize, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+#[derive(Debug, Default, Clone, Deserialize, PartialEq, Eq, PartialOrd, Ord, Serialize)]
 #[serde(try_from = "String")]
 #[serde(into = "String")]
 pub struct Repository(String, String);

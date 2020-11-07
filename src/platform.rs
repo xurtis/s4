@@ -2,7 +2,7 @@
 
 use crate::cmake::Setting;
 use crate::{Merge, NameRef, Named, NamedMap};
-use anyhow::{bail, Error};
+use anyhow::{bail, Error, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
 use std::convert::TryFrom;
@@ -29,6 +29,21 @@ impl Platform {
 
     pub fn variation(&self, id: &VariationId) -> Option<NameRef<Variation>> {
         self.variations.get(id)
+    }
+
+    pub fn check_architecture(
+        self_ref: &NameRef<Self>,
+        architecture: Sel4Architecture,
+    ) -> Result<()> {
+        if !self_ref.architectures.contains(&architecture) {
+            bail!(
+                "Architecture {} is not supported on platform {}",
+                architecture,
+                self_ref.name().as_ref()
+            );
+        } else {
+            Ok(())
+        }
     }
 }
 
@@ -179,14 +194,24 @@ pub enum Architecture {
 }
 pub use Architecture::*;
 
+impl fmt::Display for Architecture {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Arm => write!(f, "arm"),
+            RiscV => write!(f, "riscv"),
+            X86 => write!(f, "X86"),
+        }
+    }
+}
+
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Deserialize, Serialize)]
 #[serde(try_from = "String")]
 #[serde(into = "String")]
 pub enum Sel4Architecture {
     #[serde(rename = "aarch32")]
-    Aarch32,
+    AArch32,
     #[serde(rename = "aarch64")]
-    Aarch64,
+    AArch64,
     #[serde(rename = "riscv32")]
     RiscV32,
     #[serde(rename = "riscv64")]
@@ -201,8 +226,8 @@ pub use Sel4Architecture::*;
 impl Sel4Architecture {
     pub fn architecture(self) -> Architecture {
         match self {
-            Aarch32 => Arm,
-            Aarch64 => Arm,
+            AArch32 => Arm,
+            AArch64 => Arm,
             RiscV32 => RiscV,
             RiscV64 => RiscV,
             Ia32 => X86,
@@ -218,9 +243,9 @@ impl FromStr for Sel4Architecture {
         match string {
             "riscv32" => Ok(RiscV32),
             "riscv64" => Ok(RiscV64),
-            "aarch32" => Ok(Aarch32),
-            "arm_hyp" => Ok(Aarch32),
-            "aarch64" => Ok(Aarch64),
+            "aarch32" => Ok(AArch32),
+            "arm_hyp" => Ok(AArch32),
+            "aarch64" => Ok(AArch64),
             "x86_64" => Ok(X86_64),
             "ia32" => Ok(Ia32),
             _ => bail!("Invalid seL4 architecture: {}", string),
@@ -249,8 +274,8 @@ impl fmt::Display for Sel4Architecture {
             RiscV32 => write!(f, "riscv32"),
             X86_64 => write!(f, "x86_64"),
             Ia32 => write!(f, "ia32"),
-            Aarch32 => write!(f, "aarch32"),
-            Aarch64 => write!(f, "aarch64"),
+            AArch32 => write!(f, "aarch32"),
+            AArch64 => write!(f, "aarch64"),
         }
     }
 }

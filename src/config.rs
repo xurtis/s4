@@ -8,6 +8,7 @@ use crate::{
 use anyhow::{format_err, Result};
 use dirs::{config_dir, home_dir};
 use serde::Deserialize;
+use std::borrow::Cow;
 use std::collections::{BTreeMap, BTreeSet};
 use std::ops::Deref;
 use std::path::PathBuf;
@@ -77,8 +78,10 @@ impl Config {
         &self.defaults
     }
 
-    pub fn project(&self, project: &ProjectId) -> Option<NameRef<Project>> {
-        self.projects.get(project)
+    pub fn project(&self, project: &ProjectId) -> NameRef<Project> {
+        self.projects
+            .get(project)
+            .unwrap_or(NameRef::owned(Project::default(), ProjectId::auto()))
     }
 
     /// Ensure that a given set of sttings is a valid combination
@@ -114,6 +117,7 @@ impl Config {
             .platforms
             .get(platform)
             .ok_or(format_err!("No such platform {}", platform.as_ref()))?;
+        Platform::check_architecture(&platform, arch)?;
 
         setting.set_kernel_platform(platform.name());
         setting.set_platform(platform.name());
@@ -123,7 +127,7 @@ impl Config {
             let variation = platform.variation(variation).ok_or(format_err!(
                 "No such platform variation {} for platform {}",
                 variation.as_ref(),
-                platform.name.as_ref()
+                platform.name().as_ref()
             ))?;
             setting.set_platform(variation.name());
             setting.merge(variation.setting().clone());
@@ -133,14 +137,15 @@ impl Config {
             setting.merge(arch.clone());
         }
 
-        let project = self
-            .projects
-            .get(project)
-            .ok_or(format_err!("No such project {}", project.as_ref()))?;
+        let project = self.project(project);
 
         setting.merge(project.setting().clone());
 
         Ok(setting)
+    }
+
+    pub fn add_flags(&mut self, flags: NamedMap<Flag>) {
+        self.flags.merge(flags);
     }
 }
 
@@ -167,6 +172,8 @@ pub struct Defaults {
     repo_branch: Option<String>,
     /// Repo manifest file to check out
     repo_manifest: Option<String>,
+    /// Phrase to indicate completion of root server
+    exit_phrase: Option<String>,
 }
 
 impl Defaults {
@@ -178,6 +185,9 @@ impl Defaults {
 
     /// Default URL to download repo
     const REPO_URL: &'static str = "https://storage.googleapis.com/git-repo-downloads/repo";
+
+    /// Default exit phrase to expect when a run ends
+    const EXIT_PHRASE: &'static str = "All is well";
 
     /// Get the git server base URL
     pub fn git_server(&self) -> &str {
@@ -207,6 +217,11 @@ impl Defaults {
     /// Manifest to checkou out for repo
     pub fn repo_manifest(&self) -> Option<&str> {
         option_ref(&self.repo_manifest)
+    }
+
+    /// Phrase to indicate completion of root server
+    pub fn exit_phrase(&self) -> &str {
+        option_fallback(&self.exit_phrase, Self::EXIT_PHRASE)
     }
 }
 
@@ -287,26 +302,46 @@ pub trait Named {
     type Id;
 }
 
-pub struct NameRef<'t, T: Named> {
-    inner: &'t T,
-    name: &'t T::Id,
+pub struct NameRef<'t, T>
+where
+    T: Named + Clone,
+    T::Id: Clone,
+{
+    inner: Cow<'t, T>,
+    name: Cow<'t, T::Id>,
 }
 
-impl<'t, T: Named> NameRef<'t, T> {
+impl<'t, T> NameRef<'t, T>
+where
+    T: Named + Clone,
+    T::Id: Clone,
+{
     pub fn new(inner: &'t T, name: &'t T::Id) -> Self {
+        let inner = Cow::Borrowed(inner);
+        let name = Cow::Borrowed(name);
+        NameRef { inner, name }
+    }
+
+    pub fn owned(inner: T, name: T::Id) -> Self {
+        let inner = Cow::Owned(inner);
+        let name = Cow::Owned(name);
         NameRef { inner, name }
     }
 
     pub fn name(&self) -> &T::Id {
-        self.name
+        self.name.as_ref()
     }
 }
 
-impl<'t, T: Named> Deref for NameRef<'t, T> {
+impl<'t, T> Deref for NameRef<'t, T>
+where
+    T: Named + Clone,
+    T::Id: Clone,
+{
     type Target = T;
 
     fn deref(&self) -> &Self::Target {
-        self.inner
+        self.inner.as_ref()
     }
 }
 
@@ -333,11 +368,16 @@ where
     }
 }
 
-impl<T: Named> NamedMap<T>
+impl<T> NamedMap<T>
 where
-    T::Id: Ord,
+    T: Named + Clone,
+    T::Id: Clone + Ord,
     T::Id: for<'nde> Deserialize<'nde>,
 {
+    pub fn insert(&mut self, key: T::Id, value: T) {
+        self.map.insert(key, value);
+    }
+
     /// Get an object with its name from the map
     pub fn get(&self, index: &T::Id) -> Option<NameRef<T>> {
         self.map

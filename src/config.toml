@@ -1,5 +1,28 @@
 # Built-in s4 configuration
 
+# Global defaults
+# ===============
+#
+# The following settings can be added as global defaults for the tool.
+
+# The server used as the base to fetch projects specified in this configuration
+#git-server = "ssh://git@github.com"
+
+# The docker image to use when running tools like cmake and ninja
+#docker-image = "docker.io/trustworthysystems/camkes-riscv"
+
+# The URL to download the latest repo script (if repo is not in $PATH)
+#repo-url = "https://storage.googleapis.com/git-repo-downloads/repo"
+
+# The default branch to use from a manifest repository when initialising a workspace
+#repo-branch = "master"
+
+# The default manifest file name to use from a manifest repository when initialising a workspace
+#repo-manifest = "master.xml"
+
+# The default phrase to wait that indicates the successful completion of a root task
+#exit-phrase = "All is well"
+
 # Configuration flags
 # ===================
 #
@@ -24,10 +47,12 @@
 [flag.release]
 description = "Disable debug kernel and project configuration; optimised build"
 variable = "RELEASE"
+type = "bool"
 
 [flag.simulation]
 description = "Build for QEMU and generate simulation script"
 variable = "SIMLULATION"
+type = "bool"
 
 	[[flag.simulation.requires]]
 	can-simulate = true
@@ -35,10 +60,12 @@ variable = "SIMLULATION"
 [flag.smp]
 description = "Configure kernel to use multiple cores"
 variable = "SMP"
+type = "bool"
 
 [flag.mcs]
 description = "Configure kernel to use MCS scheduler"
 variable = "MCS"
+type = "bool"
 
 	[[flag.mcs.requires]]
 	can-mcs = true
@@ -46,6 +73,7 @@ variable = "MCS"
 [flag.arm-hyp]
 description = "Configure ARM platform to enable hypervisor"
 variable = "ARM_HYP"
+type = "bool"
 
 	[[flag.arm-hyp.requires]]
 	has-hypervisor = true
@@ -55,20 +83,24 @@ variable = "ARM_HYP"
 name = "verification"
 description = "Configure only verification-compatible features"
 variable = "VERIFICATION"
+type = "bool"
 
 [flag.bamboo]
 name = "bamboo"
 description = "Configure test output to be compliant with bamboo"
 variable = "BAMBOO"
+type = "bool"
 
 [flag.domains]
 description = "Enable multiple kernel scheduling domains"
 variable = "DOMAINS"
+type = "bool"
 
 [flag.fastpath]
 name = "fastpath"
 description = "Enable the kernel IPC fastpath"
 variable = "FASTPATH"
+type = "bool"
 
 # Flags set to indicate platform
 
@@ -76,20 +108,23 @@ variable = "FASTPATH"
 # This flag is automatically set by setting the platform
 description = "Set the platform used when building (recognised by cmake-tool)"
 variable = "PLATFORM"
+type = "string"
 
 [flag.kernel-platform]
 # This flag is automatically set by setting the platform
 description = "The platform string recognised by seL4"
 variable = "KernelPlatform"
+type = "string"
 
 [flag.architecture]
 # This flag is automatically derived from the sel4-architecture
 description = "Platform architecture (arm, riscv, X86)"
 
-[flag.sel4-architecture]
+[flag.kernel-sel4-arch]
 # This flag is set based on the architecture configured at command line
 description = "Platform sel4 architecture (aarch32, aarch64, riscv32, riscv64, ia32, x86_64)"
 variable = "KernelSel4Arch"
+type = "string"
 
 # Flags set by seL4 named architectures
 
@@ -97,51 +132,62 @@ variable = "KernelSel4Arch"
 # This flag is set based on the platform architecture
 description = "Prefix added to binutils and compiler binaries"
 variable = "CROSS_COMPILER_PREFIX"
+type = "string"
 
 [flag.riscv32]
 # This flag is set based on the platform architecture
 description = "Build kernel for riscv32"
 variable = "RISCV32"
+type = "bool"
 
 [flag.riscv64]
 # This flag is set based on the platform architecture
 description = "Build kernel for riscv64"
 variable = "RISCV64"
+type = "bool"
 
 [flag.aarch32]
 # This flag is set based on the platform architecture
 description = "Build kernel for aarch32"
 variable = "AARCH32"
+type = "bool"
 
 [flag.aarch64]
 # This flag is set based on the platform architecture
 description = "Build kernel for aarch64"
 variable = "AARCH64"
+type = "bool"
 
 # Flags set by platforms to indicate features
 
 [flag.can-mcs]
 description = "Platform supports MCS"
+type = "bool"
 
 [flag.has-hypervisor]
 description = "Platform supports virtualisation"
+type = "bool"
 
 [flag.can-simulate]
 description = "Platform supports simulation"
+type = "bool"
 
 # Flag set by platform variations
 
 [flag.arm-platform]
 description = "Specific variation of ARM platform to build"
 variable = "KernelARMPlatform"
+type = "string"
 
 [flag.arm-cpu]
 description = "Specific CPU emulated by QEMU"
 variable = "ARM_CPU"
+type = "string"
 
 [flag.x86-micro-arch]
 description = "Specific micro-architecture to build for x86"
 variable = "KernelX86MicroArch"
+type = "string"
 
 # Platforms
 # =========
@@ -364,45 +410,48 @@ has-hypervisor = true
 cross-compiler-prefix = "riscv64-unknown-linux-gnu-"
 riscv64 = true
 architecture = "riscv"
-sel4-architecture = "riscv64"
+kernel-sel4-arch = "riscv64"
 
 [architecture.riscv32]
 cross-compiler-prefix = "riscv64-unknown-linux-gnu-"
 riscv32 = true
 architecture = "riscv"
-sel4-architecture = "riscv32"
+kernel-sel4-arch = "riscv32"
 
 [architecture.aarch32]
 cross-compiler-prefix = "arm-linux-gnueabi-"
 aarch32 = true
 architecture = "arm"
-sel4-architecture = "aarch32"
+kernel-sel4-arch = "aarch32"
 
 [architecture.aarch64]
 cross-compiler-prefix = "aarch64-linux-gnu-"
 aarch64 = true
 architecture = "arm"
-sel4-architecture = "aarch64"
+kernel-sel4-arch = "aarch64"
 
 [architecture.x86_64]
 architecture = "X86"
-sel4-architecture = "x86_64"
+kernel-sel4-arch = "x86_64"
 
 [architecture.ia32]
 architecture = "X86"
-sel4-architecture = "ia32"
+kernel-sel4-arch = "ia32"
 
 # Projects
 # ========
 #
-# Each project identifies a project directory that can be initialised with repo.
+# Each project identifies a project directory that can be initialised with repo. Defining a project
+# like this isn't necessary but provides project-sepcific control and allows a project to be
+# initialised using a short reference name.
 #
-# - name: Each project is identified by a name
 # - repository: The name of the manifest repository in the form of <owner/org>/<repo> without a
-#   .git suffix
-# - source-directory: The project source directory relative to the root of the checkout repo
-# - root-server: Name of th ebinary used for the root server
-# - exit-phrase: Phrase sent to serial output when root server completes
+#   .git suffix (required)
+# - source-directory: The project source directory relative to the root of the checkout repo (can
+#   be inferred)
+# - root-server: Name of th ebinary used for the root server (can be inferred)
+# - exit-phrase: Phrase sent to serial output when root server completes (defaults to 'All is
+#   well')
 # - command-line: A list of flags to make available at the command line
 # - flags: A project can also set flags that will be overridden by the platform.
 
@@ -422,3 +471,5 @@ command-line = [
 	"fastpath",
 	"arm-hyp",
 ]
+# You can add any project-spcific flags which can be used in flag requirements
+project-is-sel4test = true

@@ -2,14 +2,16 @@
 
 use crate::util::*;
 use crate::{
-    Apps, Config, Docker, Merge, PlatformId, Project, ProjectId, Sel4Architecture, Setting,
-    VariationId,
+    Apps, Config, Docker, Flag, Merge, NamedMap, PlatformId, Project, ProjectId, Sel4Architecture,
+    Setting, Type, VariationId,
 };
 use anyhow::{bail, Result};
+use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
 use std::env::current_dir;
-use std::fs::{create_dir_all, read_dir};
+use std::fs::{create_dir_all, read_dir, File};
+use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
@@ -61,6 +63,87 @@ pub trait Context {
         }
 
         Ok(docker)
+    }
+
+    fn easy_settings(&self) -> Result<NamedMap<Flag>> {
+        let mut flags = NamedMap::default();
+
+        // Regex to match a setting
+        let setting_match = Regex::new(
+            "^set\\((?P<variable>[A-Za-z][A-Za-z0-9_]*)( [^ ]+){2} (?P<type>[A-Z]+) \"(?P<description>[^\"]*)\"\\)$",
+        )?;
+
+        let mut easy_settings = self.workspace_root().to_owned();
+        easy_settings.push(Workspace::EASY_SETTINGS);
+
+        // No flags if no file
+        if !easy_settings.is_file() {
+            return Ok(flags);
+        }
+
+        let easy_settings = BufReader::new(File::open(easy_settings)?);
+
+        for line in easy_settings.lines() {
+            let line = line?;
+            if let Some(matches) = setting_match.captures(line.trim()) {
+                let variable = &matches["variable"];
+                let description = &matches["description"];
+                let identifier: String = if variable.chars().all(|c| c.is_uppercase() || c == '_') {
+                    // SCREAMING_SNAKE_CASE
+                    variable
+                        .chars()
+                        .flat_map(|c| {
+                            if c == '_' {
+                                '-'.to_lowercase()
+                            } else {
+                                c.to_lowercase()
+                            }
+                        })
+                        .collect()
+                } else {
+                    // PascalCase
+                    let mut first = true;
+                    variable
+                        .chars()
+                        .flat_map(move |c| {
+                            if c.is_uppercase() && !first {
+                                vec!['-'].into_iter().chain(c.to_lowercase())
+                            } else {
+                                first = false;
+                                vec![].into_iter().chain(c.to_lowercase())
+                            }
+                        })
+                        .collect()
+                };
+                let type_ = match &matches["type"] {
+                    "STRING" => Some(Type::Text),
+                    "BOOL" => Some(Type::Boolean),
+                    _ => None,
+                };
+
+                flags.insert(
+                    identifier.into(),
+                    Flag::new(description, Some(variable), type_),
+                );
+            }
+        }
+
+        Ok(flags)
+    }
+
+    /// Infer the path to the source directory
+    fn inferred_source(&self) -> Result<PathBuf> {
+        let workspace_root = self.workspace_root().canonicalize()?;
+        let mut hint_path = workspace_root.clone();
+        hint_path.push(Workspace::EASY_SETTINGS);
+
+        if hint_path.exists() {
+            hint_path = hint_path.canonicalize()?;
+            hint_path.pop();
+            relative_path(workspace_root, hint_path)
+        } else {
+            bail!("Could not infer source directory");
+        }
     }
 }
 
@@ -357,6 +440,58 @@ impl BuildContext {
     pub fn architecture(&self) -> Sel4Architecture {
         self.build.architecture
     }
+
+    pub fn kernel_image_path(&self) -> Result<PathBuf> {
+        self.in_image_dir(format!("kernel-{}", self.plat_image_name()))
+    }
+
+    pub fn image_path(&self, root_server: impl AsRef<str>) -> Result<PathBuf> {
+        self.in_image_dir(format!(
+            "{}-image-{}",
+            root_server.as_ref(),
+            self.plat_image_name()
+        ))
+    }
+
+    fn plat_image_name(&self) -> String {
+        match self.architecture().architecture() {
+            crate::X86 => format!("{}-{}", self.architecture(), self.platform().as_ref()),
+            architecture => format!("{}-{}", architecture, self.platform().as_ref()),
+        }
+    }
+
+    fn in_image_dir(&self, filename: impl AsRef<Path>) -> Result<PathBuf> {
+        let mut path = PathBuf::new();
+        path.push("images");
+        path.push(filename);
+
+        in_dir(&self.build_root, || {
+            if path.exists() {
+                Ok(path)
+            } else {
+                bail!("Image file missing: {}", path.display())
+            }
+        })
+    }
+
+    pub fn inferred_root_server(&self) -> Result<String> {
+        in_dir(&self.build_root, || {
+            if Path::new("images").is_dir() {
+                let image_tail = format!("-image-{}", self.plat_image_name());
+                for file in read_dir("images")? {
+                    let file = file?;
+                    if let Some(name) = file.file_name().to_str() {
+                        if name.ends_with(&image_tail) {
+                            return Ok(name[..name.len() - image_tail.len()].to_owned());
+                        }
+                    }
+                }
+                bail!("no rootserver image in images directory")
+            } else {
+                bail!("images directory is missing")
+            }
+        })
+    }
 }
 
 /// Workspace directory for a project
@@ -371,7 +506,10 @@ pub struct Workspace {
 
 impl Workspace {
     /// Filename used to indicate a workspace directory
-    pub const FILENAME: &'static str = ".s4-workspace.toml";
+    const FILENAME: &'static str = ".s4-workspace.toml";
+
+    /// Hint file used to indicate the location of the project source directory
+    const EASY_SETTINGS: &'static str = "easy-settings.cmake";
 }
 
 /// Build directory configuration
